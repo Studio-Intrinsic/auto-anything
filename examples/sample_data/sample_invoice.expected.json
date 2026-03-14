@@ -1,0 +1,9 @@
+{
+  "customer_name": "Test Business",
+  "due_date": "January 31, 2016",
+  "invoice_date": "January 25, 2016",
+  "invoice_number": "INV-3337",
+  "order_number": "12345",
+  "total_due": "$93.50",
+  "vendor_name": "DEMO - Sliced Invoices"
+}
