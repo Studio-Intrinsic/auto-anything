@@ -40,6 +40,8 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn("## Mutable Surface", agents_text)
             self.assertIn("src/invoice_pipeline", agents_text)
             self.assertIn("run_task_iteration.py --task-root", agents_text)
+            self.assertIn("list_openrouter_models()", agents_text)
+            self.assertIn("list_artificial_analysis_llms()", agents_text)
 
             completed = run_bootstrapped_eval(task_root)
             summary = json.loads((task_root / "artifacts" / "eval_summary.json").read_text(encoding="utf-8"))

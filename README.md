@@ -33,11 +33,14 @@ The repo is organized in two layers:
 cp .env.example .env.local
 ```
 
-2. Edit `.env.local` and add your OpenRouter key:
+2. Edit `.env.local` and add your provider and benchmark API keys:
 
 ```bash
 OPENROUTER_API_KEY=...
+ARTIFICIAL_ANALYSIS_API_KEY=...
 ```
+
+`OPENROUTER_API_KEY` is used when the task actually needs model calls or live OpenRouter model discovery. `ARTIFICIAL_ANALYSIS_API_KEY` is used for live benchmark, speed, and pricing lookups from Artificial Analysis so the agent can make current model-selection decisions instead of relying on stale priors.
 
 3. Bootstrap a starter workspace from plain-English intent plus referenced files:
 
@@ -72,6 +75,33 @@ The bootstrapped `AGENTS.md` is the agent handoff document inside the task works
 - the subsystem map
 - the builder/critic/judge loop
 - the artifacts and history to inspect after each run
+
+It also now includes a live model-selection section so the agent can query current provider and benchmark APIs instead of relying on stale model knowledge:
+
+- OpenRouter model catalog and pricing: `https://openrouter.ai/docs/api-reference/overview`
+- Artificial Analysis free benchmark API: `https://artificialanalysis.ai/api`
+
+The corresponding library helpers are:
+
+- `list_openrouter_models(...)`
+- `get_openrouter_model(...)`
+- `extract_openrouter_usage(...)`
+- `fetch_openrouter_generation(...)`
+- `list_artificial_analysis_llms(...)`
+- `shortlist_artificial_analysis_llms(...)`
+
+The intent is not “always use AI.” Many tasks should stay deterministic. The point is to give the agent reliable, current information for model selection, pricing comparison, and exact cost accounting when AI or multi-agent structure is actually warranted.
+
+### Live Model Research
+
+When model choice matters, the intended workflow is:
+
+1. Use `list_artificial_analysis_llms(...)` to pull current quality, coding, math, speed, and price-per-1M-token data from Artificial Analysis.
+2. Use `shortlist_artificial_analysis_llms(...)` to narrow the field by your actual constraints.
+3. Use `list_openrouter_models(...)` or `get_openrouter_model(...)` to confirm the shortlisted models are actually available through OpenRouter and support the modalities/parameters you need.
+4. During real eval runs, use `extract_openrouter_usage(...)` or `fetch_openrouter_generation(...)` to capture exact OpenRouter cost instead of guessing from token counts.
+
+Artificial Analysis attribution is required when using their free API. See their docs at `https://artificialanalysis.ai/api`.
 
 ## Motivation
 

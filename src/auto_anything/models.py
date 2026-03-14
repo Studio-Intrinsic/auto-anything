@@ -157,6 +157,7 @@ class ExecutionBackendConfig:
         "TEMP",
         "OPENROUTER_API_KEY",
         "OPENROUTER_MODEL",
+        "ARTIFICIAL_ANALYSIS_API_KEY",
         "OPENAI_API_KEY",
         "ANTHROPIC_API_KEY",
         "AUTO_ANYTHING_SKIP_AUTO_RECORD",

@@ -73,6 +73,10 @@ class RequestBootstrapTests(unittest.TestCase):
             self.assertTrue((bootstrapped / "AGENTS.md").is_file())
             self.assertTrue((bootstrapped / "src" / "task_pipeline" / "pipeline.py").is_file())
             self.assertTrue((bootstrapped / "eval" / "run_task_eval.py").is_file())
+            self.assertIn(
+                "Artificial Analysis docs: `https://artificialanalysis.ai/api`",
+                (bootstrapped / "AGENTS.md").read_text(encoding="utf-8"),
+            )
             self.assertEqual(summary["signals"]["task_quality"], 0.0)
             self.assertEqual(len(history), 1)
 

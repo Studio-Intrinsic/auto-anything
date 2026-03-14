@@ -5,6 +5,7 @@ import os
 import urllib.request
 from pathlib import Path
 
+from auto_anything.openrouter_api import extract_openrouter_usage
 from invoice_pipeline.document_io import image_to_data_url
 from invoice_pipeline.field_extractors import coerce_model_output
 
@@ -101,14 +102,16 @@ def extract_invoice_from_images(
 
     message = raw["choices"][0]["message"]
     parsed = _extract_json_block(_response_text(message.get("content", "")))
-    usage = raw.get("usage", {})
+    usage = extract_openrouter_usage(raw)
     meta = {
         "used_model": chosen_model,
         "used_vision": True,
         "usage": {
-            "prompt_tokens": int(usage.get("prompt_tokens", 0) or 0),
-            "completion_tokens": int(usage.get("completion_tokens", 0) or 0),
-            "total_tokens": int(usage.get("total_tokens", 0) or 0),
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "total_tokens": usage.total_tokens,
+            "reasoning_tokens": usage.reasoning_tokens,
+            "cost_usd": usage.cost_usd or usage.estimated_cost_usd,
         },
         "fallback_reason": "",
     }

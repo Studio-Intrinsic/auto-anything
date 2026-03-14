@@ -32,7 +32,7 @@ def main() -> int:
     passed_docs = 0
     schema_valid = 1.0
     latencies = []
-    token_totals = []
+    token_costs = []
 
     predictions_dir = ROOT / "artifacts" / "predictions"
     predictions_dir.mkdir(parents=True, exist_ok=True)
@@ -43,7 +43,8 @@ def main() -> int:
         t0 = time.perf_counter()
         prediction, meta = extract_invoice_with_meta(pdf_path)
         latencies.append(time.perf_counter() - t0)
-        token_totals.append(int(meta.get("usage", {}).get("total_tokens", 0) or 0))
+        usage = meta.get("usage", {})
+        token_costs.append(float(usage.get("cost_usd", usage.get("total_tokens", 0)) or 0))
         (predictions_dir / f"{pdf_path.stem}.predicted.json").write_text(
             json.dumps(prediction, indent=2, sort_keys=True),
             encoding="utf-8",
@@ -68,7 +69,7 @@ def main() -> int:
     field_accuracy = (total_correct / total_expected) if total_expected else 0.0
     document_pass_rate = (passed_docs / doc_count) if doc_count else 0.0
     latency_seconds = (sum(latencies) / len(latencies)) if latencies else 0.0
-    token_cost = (sum(token_totals) / len(token_totals)) if token_totals else 0.0
+    token_cost = (sum(token_costs) / len(token_costs)) if token_costs else 0.0
 
     summary = {
         "candidate_id": "baseline",
