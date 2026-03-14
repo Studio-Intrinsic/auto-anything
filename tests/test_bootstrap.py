@@ -30,6 +30,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertTrue((task_root / "src" / "invoice_pipeline" / "document_io.py").is_file())
             self.assertTrue((task_root / "src" / "invoice_pipeline" / "field_extractors.py").is_file())
             self.assertTrue((task_root / "src" / "invoice_pipeline" / "normalization.py").is_file())
+            self.assertTrue((task_root / "src" / "invoice_pipeline" / "openrouter_client.py").is_file())
             self.assertTrue((task_root / "src" / "invoice_pipeline" / "schema.py").is_file())
             self.assertTrue((task_root / "eval" / "run_invoice_eval.py").is_file())
             self.assertTrue((task_root / "fixtures" / "sample_invoice.pdf").is_file())
@@ -37,10 +38,15 @@ class BootstrapTests(unittest.TestCase):
 
             completed = run_bootstrapped_eval(task_root)
             summary = json.loads((task_root / "artifacts" / "eval_summary.json").read_text(encoding="utf-8"))
+            history = json.loads((task_root / "artifacts" / "experiment_history.json").read_text(encoding="utf-8"))
 
             self.assertEqual(completed.returncode, 0)
             self.assertGreaterEqual(summary["signals"]["field_accuracy"], 0.99)
             self.assertEqual(summary["signals"]["schema_valid"], 1.0)
+            self.assertTrue((task_root / ".git").is_dir())
+            self.assertTrue((task_root / "artifacts" / "progress_curve.svg").is_file())
+            self.assertEqual(len(history), 1)
+            self.assertEqual(history[0]["metric_name"], "field_accuracy")
 
 
 if __name__ == "__main__":

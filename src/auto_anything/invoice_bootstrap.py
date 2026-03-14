@@ -30,6 +30,7 @@ from .workspace import resolve_workspace_paths
 
 
 DEFAULT_MODEL = "x-ai/grok-4.1-fast"
+LIBRARY_SRC = Path(__file__).resolve().parents[1]
 
 
 class InvoiceExtractionSkill:
@@ -107,7 +108,11 @@ class InvoiceExtractionSkill:
                 SubsystemSpec(
                     subsystem_id="field-extraction",
                     summary="Extract invoice fields from the document representation.",
-                    owned_paths=("src/invoice_pipeline/field_extractors.py", "src/invoice_pipeline/extract.py"),
+                    owned_paths=(
+                        "src/invoice_pipeline/field_extractors.py",
+                        "src/invoice_pipeline/openrouter_client.py",
+                        "src/invoice_pipeline/extract.py",
+                    ),
                     primary_signals=("field_accuracy", "document_pass_rate"),
                     guardrail_signals=("token_cost", "latency_seconds"),
                     decomposition_hints=("vendor-header-detection", "date-parsing", "amount-parsing"),
@@ -250,27 +255,56 @@ def _extractor_source() -> str:
         from __future__ import annotations
 
         import json
+        import os
+        import tempfile
         from pathlib import Path
 
-        from invoice_pipeline.document_io import extract_text
-        from invoice_pipeline.field_extractors import extract_fields
+        from invoice_pipeline.document_io import extract_text, render_pdf_pages
+        from invoice_pipeline.field_extractors import extract_fields_from_text
         from invoice_pipeline.normalization import normalize_invoice
+        from invoice_pipeline.openrouter_client import extract_invoice_from_images
         from invoice_pipeline.schema import validate_invoice
 
 
-        def extract_invoice(pdf_path: str | Path) -> dict[str, str]:
+        def extract_invoice_with_meta(pdf_path: str | Path) -> tuple[dict[str, str], dict[str, object]]:
             path = Path(pdf_path)
             document_text = extract_text(path)
-            raw_fields = extract_fields(document_text)
+            fallback_meta: dict[str, object] = {
+                "used_model": "",
+                "used_vision": False,
+                "usage": {"total_tokens": 0},
+                "fallback_reason": "",
+            }
+
+            if os.getenv("OPENROUTER_API_KEY"):
+                try:
+                    with tempfile.TemporaryDirectory(prefix="invoice-pages-") as tmpdir:
+                        image_paths = render_pdf_pages(path, Path(tmpdir))
+                        raw_fields, remote_meta = extract_invoice_from_images(
+                            image_paths=image_paths,
+                            text_hint=document_text,
+                        )
+                    normalized = normalize_invoice(raw_fields)
+                    return validate_invoice(normalized), remote_meta
+                except Exception as exc:
+                    fallback_meta["fallback_reason"] = str(exc)
+
+            raw_fields = extract_fields_from_text(document_text)
             normalized = normalize_invoice(raw_fields)
-            return validate_invoice(normalized)
+            return validate_invoice(normalized), fallback_meta
+
+
+        def extract_invoice(pdf_path: str | Path) -> dict[str, str]:
+            payload, _ = extract_invoice_with_meta(pdf_path)
+            return payload
 
 
         if __name__ == "__main__":
             import sys
 
-            payload = extract_invoice(sys.argv[1])
+            payload, meta = extract_invoice_with_meta(sys.argv[1])
             print(json.dumps(payload, indent=2, sort_keys=True))
+            print(json.dumps(meta, indent=2, sort_keys=True))
         """
     ).strip() + "\n"
 
@@ -280,6 +314,7 @@ def _document_io_source() -> str:
         """
         from __future__ import annotations
 
+        import base64
         import subprocess
         from pathlib import Path
 
@@ -292,6 +327,34 @@ def _document_io_source() -> str:
                 text=True,
             )
             return completed.stdout
+
+
+        def render_pdf_pages(pdf_path: Path, output_dir: Path, *, max_pages: int = 4) -> list[Path]:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            prefix = output_dir / "page"
+            subprocess.run(
+                [
+                    "pdftoppm",
+                    "-jpeg",
+                    "-r",
+                    "144",
+                    "-f",
+                    "1",
+                    "-l",
+                    str(max_pages),
+                    str(pdf_path),
+                    str(prefix),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return sorted(output_dir.glob("page-*.jpg"))
+
+
+        def image_to_data_url(image_path: Path) -> str:
+            payload = base64.b64encode(image_path.read_bytes()).decode("ascii")
+            return f"data:image/jpeg;base64,{payload}"
         """
     ).strip() + "\n"
 
@@ -309,7 +372,7 @@ def _field_extractors_source() -> str:
             return match.group(1).strip() if match else ""
 
 
-        def extract_fields(text: str) -> dict[str, str]:
+        def extract_fields_from_text(text: str) -> dict[str, str]:
             return {
                 "invoice_number": _search(r"Invoice Number\\s+([A-Z0-9-]+)", text),
                 "order_number": _search(r"Order Number\\s+([A-Z0-9-]+)", text),
@@ -319,6 +382,140 @@ def _field_extractors_source() -> str:
                 "vendor_name": _search(r"From:\\s+(.+)", text),
                 "customer_name": _search(r"To:\\s+(.+)", text),
             }
+
+
+        def coerce_model_output(payload: dict[str, object]) -> dict[str, str]:
+            return {
+                "invoice_number": str(payload.get("invoice_number", "") or "").strip(),
+                "order_number": str(payload.get("order_number", "") or "").strip(),
+                "invoice_date": str(payload.get("invoice_date", "") or "").strip(),
+                "due_date": str(payload.get("due_date", "") or "").strip(),
+                "total_due": str(payload.get("total_due", "") or "").strip(),
+                "vendor_name": str(payload.get("vendor_name", "") or "").strip(),
+                "customer_name": str(payload.get("customer_name", "") or "").strip(),
+            }
+        """
+    ).strip() + "\n"
+
+
+def _openrouter_client_source() -> str:
+    return textwrap.dedent(
+        """
+        from __future__ import annotations
+
+        import json
+        import os
+        import urllib.request
+        from pathlib import Path
+
+        from invoice_pipeline.document_io import image_to_data_url
+        from invoice_pipeline.field_extractors import coerce_model_output
+
+
+        OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+        DEFAULT_MODEL = "x-ai/grok-4.1-fast"
+
+
+        def _response_text(content: object) -> str:
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                parts = []
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        parts.append(str(item.get("text", "")))
+                return "".join(parts)
+            raise ValueError("Unsupported response content shape from OpenRouter.")
+
+
+        def _extract_json_block(text: str) -> dict[str, object]:
+            stripped = text.strip()
+            if stripped.startswith("```"):
+                lines = stripped.splitlines()
+                stripped = "\\n".join(lines[1:-1]).strip()
+            start = stripped.find("{")
+            end = stripped.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                raise ValueError(f"Model response did not contain JSON: {text}")
+            return json.loads(stripped[start:end + 1])
+
+
+        def extract_invoice_from_images(
+            *,
+            image_paths: list[Path],
+            text_hint: str,
+            model: str | None = None,
+        ) -> tuple[dict[str, str], dict[str, object]]:
+            api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+            if not api_key:
+                raise RuntimeError("OPENROUTER_API_KEY is not set.")
+
+            chosen_model = model or os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+            content: list[dict[str, object]] = [
+                {
+                    "type": "text",
+                    "text": (
+                        "Extract invoice fields from these invoice page images. "
+                        "Return JSON only with the keys: invoice_number, order_number, "
+                        "invoice_date, due_date, total_due, vendor_name, customer_name. "
+                        "Prefer exact strings from the invoice. Use empty strings when unknown. "
+                        f"Helpful OCR/text hint: {text_hint[:4000]}"
+                    ),
+                }
+            ]
+            for image_path in image_paths:
+                content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": image_to_data_url(image_path),
+                        },
+                    }
+                )
+
+            payload = {
+                "model": chosen_model,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a careful invoice extraction system. Return only valid JSON.",
+                    },
+                    {
+                        "role": "user",
+                        "content": content,
+                    },
+                ],
+            }
+            request = urllib.request.Request(
+                OPENROUTER_URL,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://github.com/Studio-Intrinsic/auto-anything",
+                    "X-Title": "auto-anything invoice extraction",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=120) as response:
+                raw = json.loads(response.read().decode("utf-8"))
+
+            message = raw["choices"][0]["message"]
+            parsed = _extract_json_block(_response_text(message.get("content", "")))
+            usage = raw.get("usage", {})
+            meta = {
+                "used_model": chosen_model,
+                "used_vision": True,
+                "usage": {
+                    "prompt_tokens": int(usage.get("prompt_tokens", 0) or 0),
+                    "completion_tokens": int(usage.get("completion_tokens", 0) or 0),
+                    "total_tokens": int(usage.get("total_tokens", 0) or 0),
+                },
+                "fallback_reason": "",
+            }
+            return coerce_model_output(parsed), meta
         """
     ).strip() + "\n"
 
@@ -369,22 +566,27 @@ def _schema_source() -> str:
     ).strip() + "\n"
 
 
-def _eval_source() -> str:
-    return textwrap.dedent(
+def _eval_source(library_src: Path) -> str:
+    template = textwrap.dedent(
         """
         from __future__ import annotations
 
         import json
+        import os
         import time
         from pathlib import Path
         import sys
 
         ROOT = Path(__file__).resolve().parents[1]
+        LIB_SRC = Path("__AUTO_ANYTHING_LIBRARY_SRC__")
         SRC = ROOT / "src"
+        if str(LIB_SRC) not in sys.path:
+            sys.path.insert(0, str(LIB_SRC))
         if str(SRC) not in sys.path:
             sys.path.insert(0, str(SRC))
 
-        from invoice_pipeline.extract import extract_invoice
+        from auto_anything.history import choose_primary_signal_from_charter, record_experiment_result
+        from invoice_pipeline.extract import extract_invoice_with_meta
 
 
         def _normalize(value: str) -> str:
@@ -401,6 +603,7 @@ def _eval_source() -> str:
             passed_docs = 0
             schema_valid = 1.0
             latencies = []
+            token_totals = []
 
             predictions_dir = ROOT / "artifacts" / "predictions"
             predictions_dir.mkdir(parents=True, exist_ok=True)
@@ -409,8 +612,9 @@ def _eval_source() -> str:
                 gold_path = goldens_dir / f"{pdf_path.stem}.expected.json"
                 gold = json.loads(gold_path.read_text(encoding="utf-8")) if gold_path.is_file() else {}
                 t0 = time.perf_counter()
-                prediction = extract_invoice(pdf_path)
+                prediction, meta = extract_invoice_with_meta(pdf_path)
                 latencies.append(time.perf_counter() - t0)
+                token_totals.append(int(meta.get("usage", {}).get("total_tokens", 0) or 0))
                 (predictions_dir / f"{pdf_path.stem}.predicted.json").write_text(
                     json.dumps(prediction, indent=2, sort_keys=True),
                     encoding="utf-8",
@@ -435,7 +639,7 @@ def _eval_source() -> str:
             field_accuracy = (total_correct / total_expected) if total_expected else 0.0
             document_pass_rate = (passed_docs / doc_count) if doc_count else 0.0
             latency_seconds = (sum(latencies) / len(latencies)) if latencies else 0.0
-            token_cost = 0.0
+            token_cost = (sum(token_totals) / len(token_totals)) if token_totals else 0.0
 
             summary = {
                 "candidate_id": "baseline",
@@ -453,6 +657,17 @@ def _eval_source() -> str:
             summary_path = ROOT / "artifacts" / "eval_summary.json"
             summary_path.parent.mkdir(parents=True, exist_ok=True)
             summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+            if os.getenv("AUTO_ANYTHING_SKIP_AUTO_RECORD", "").strip() not in {"1", "true", "TRUE"}:
+                charter = json.loads((ROOT / "task_charter.json").read_text(encoding="utf-8"))
+                metric_name, direction = choose_primary_signal_from_charter(charter)
+                record_experiment_result(
+                    task_root=ROOT,
+                    summary=summary,
+                    metric_name=metric_name,
+                    direction=direction,
+                    label=summary["candidate_id"],
+                    focus_subsystems=tuple(charter.get("focus_subsystems", [])),
+                )
             print(json.dumps(summary, indent=2, sort_keys=True))
             return 0
 
@@ -461,6 +676,7 @@ def _eval_source() -> str:
             raise SystemExit(main())
         """
     ).strip() + "\n"
+    return template.replace("__AUTO_ANYTHING_LIBRARY_SRC__", str(library_src))
 
 
 def _task_readme_source(task_name: str) -> str:
@@ -476,19 +692,25 @@ def _task_readme_source(task_name: str) -> str:
         2. improve one subsystem at a time inside `src/invoice_pipeline/`
         3. keep `eval/`, `fixtures/`, and `goldens/` stable
         4. run `python3 eval/run_invoice_eval.py`
-        5. inspect `artifacts/eval_summary.json`
-        6. switch into a critic stance and look for brittle assumptions or gaming
-        7. keep iterating
+        5. inspect `artifacts/eval_summary.json`, `artifacts/experiment_history.json`, `artifacts/knowledge_base.md`, and `artifacts/progress_curve.svg`
+        6. inspect `artifacts/experiments/` for per-experiment markdown and JSON reports
+        7. use local git history to diff current work against previous experiments
+        8. switch into a critic stance and look for brittle assumptions or gaming
+        9. keep iterating
 
         Starter subsystem ownership:
 
         - `document-ingestion`: `src/invoice_pipeline/document_io.py`
-        - `field-extraction`: `src/invoice_pipeline/field_extractors.py`, `src/invoice_pipeline/extract.py`
+        - `field-extraction`: `src/invoice_pipeline/field_extractors.py`, `src/invoice_pipeline/openrouter_client.py`, `src/invoice_pipeline/extract.py`
         - `normalization`: `src/invoice_pipeline/normalization.py`
         - `schema-validation`: `src/invoice_pipeline/schema.py`
 
         This split exists so the same agent can focus work on one subsystem without losing
         whole-pipeline eval guardrails.
+
+        Each eval run also snapshots the workspace into local git, writes a per-experiment report,
+        and updates a rolling knowledge base so future experiments can inspect, diff, and refine
+        earlier attempts instead of working blind.
         """
     ).strip() + "\n"
 
@@ -534,8 +756,9 @@ def bootstrap_invoice_task(
     (paths.candidate_dir / "document_io.py").write_text(_document_io_source(), encoding="utf-8")
     (paths.candidate_dir / "field_extractors.py").write_text(_field_extractors_source(), encoding="utf-8")
     (paths.candidate_dir / "normalization.py").write_text(_normalization_source(), encoding="utf-8")
+    (paths.candidate_dir / "openrouter_client.py").write_text(_openrouter_client_source(), encoding="utf-8")
     (paths.candidate_dir / "schema.py").write_text(_schema_source(), encoding="utf-8")
-    (paths.evaluator_dir / "run_invoice_eval.py").write_text(_eval_source(), encoding="utf-8")
+    (paths.evaluator_dir / "run_invoice_eval.py").write_text(_eval_source(LIBRARY_SRC), encoding="utf-8")
     (task_root / "README.md").write_text(_task_readme_source(task_root.name), encoding="utf-8")
     (task_root / "task_charter.json").write_text(
         json.dumps(asdict(charter), indent=2, sort_keys=True, default=str),

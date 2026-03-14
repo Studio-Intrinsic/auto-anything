@@ -151,6 +151,34 @@ This also gives the critic a second job beyond metric gaming. It should actively
 
 The goal is targeted iteration without monolithic sprawl.
 
+## Experiment Lineage
+
+Experiments need memory. The agent should be able to inspect previous attempts, diff them, revive useful ideas, and re-architect from concrete prior states instead of working from a vague summary.
+
+`auto-anything` now treats experiment lineage as a first-class artifact:
+
+- each eval run appends to an experiment ledger
+- each eval run snapshots the workspace into local git
+- each experiment gets a stable git tag such as `aa-exp-0007`
+- each experiment gets its own JSON and Markdown report
+- each workspace maintains a rolling `knowledge_base.md`
+- each workspace writes a progress curve SVG from the accumulated history
+
+That means the agent can use normal tools like:
+
+- `git log --oneline --decorate`
+- `git show aa-exp-0003`
+- `git diff aa-exp-0004..aa-exp-0009`
+
+and combine that with:
+
+- `artifacts/experiment_history.json`
+- `artifacts/knowledge_base.md`
+- `artifacts/experiments/aa-exp-0007.md`
+- `artifacts/progress_curve.svg`
+
+to understand what changed, what improved, and where a promising branch of ideas was abandoned too early.
+
 ## Built-In Counterbalance
 
 This system should assume that the optimizer can game the metric unless something pushes back.
@@ -309,6 +337,28 @@ The starter workspace is intentionally modular so focused iteration has somewher
 - `src/invoice_pipeline/normalization.py`
 - `src/invoice_pipeline/schema.py`
 - `src/invoice_pipeline/extract.py`
+
+Every eval in that workspace also updates:
+
+- `artifacts/eval_summary.json`
+- `artifacts/experiment_history.json`
+- `artifacts/knowledge_base.md`
+- `artifacts/experiments/*.md`
+- `artifacts/progress_curve.svg`
+
+and snapshots the current workspace into local git so later experiments can build on explicit prior states.
+
+To record a real iteration after you edit the pipeline, run:
+
+```bash
+python3 examples/run_invoice_iteration.py \
+  --task-root work/invoice_extraction_demo \
+  --hypothesis "Improving normalization should reduce date parsing brittleness." \
+  --change-summary "Refined normalization logic for invoice dates." \
+  --focus-subsystem normalization
+```
+
+That path uses the engine decision plus the self-critic pass to write an authoritative experiment record, instead of relying only on the raw eval summary.
 
 ## Design Principles
 

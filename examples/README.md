@@ -15,3 +15,7 @@ Current example:
   - copies fixtures and goldens
   - writes a baseline pipeline and eval harness
   - runs the baseline eval so the agent can immediately start iterating
+- `run_invoice_iteration.py`
+  - records one authoritative experiment iteration against an existing bootstrapped workspace
+  - requires a hypothesis and change summary
+  - persists the engine decision, git checkpoint, knowledge base, and progress curve

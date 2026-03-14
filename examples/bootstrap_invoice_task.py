@@ -61,6 +61,9 @@ def main() -> int:
     completed = run_bootstrapped_eval(task_root)
     print(completed.stdout)
     print(f"Eval summary: {task_root / 'artifacts' / 'eval_summary.json'}")
+    print(f"Experiment history: {task_root / 'artifacts' / 'experiment_history.json'}")
+    print(f"Knowledge base: {task_root / 'artifacts' / 'knowledge_base.md'}")
+    print(f"Progress curve: {task_root / 'artifacts' / 'progress_curve.svg'}")
     return 0
 
 
