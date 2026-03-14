@@ -29,6 +29,14 @@ from .invoice_bootstrap import (
     load_env_file,
     run_bootstrapped_eval,
 )
+from .request_bootstrap import (
+    PlainTextTaskRequest,
+    bootstrap_task_from_request,
+    build_bootstrap_plan_from_request,
+    build_brief_from_request,
+    infer_task_root,
+    resolve_referenced_paths,
+)
 from .models import (
     AcceptanceDecision,
     AgentLoopSpec,
@@ -70,7 +78,8 @@ from .models import (
 )
 from .scaffold import materialize_scaffold
 from .skills import SkillRegistry
-from .task_iteration import run_self_critic, run_task_iteration
+from .task_docs import render_task_agents_md
+from .task_iteration import run_self_critic, run_task_baseline, run_task_iteration
 from .task_family import (
     TaskFamilyRegistry,
     build_bootstrap_plan,
@@ -121,7 +130,10 @@ __all__ = [
     "infer_task_family",
     "IterationStep",
     "bootstrap_invoice_task",
+    "bootstrap_task_from_request",
     "build_invoice_objective_brief",
+    "build_bootstrap_plan_from_request",
+    "build_brief_from_request",
     "compile_invoice_charter",
     "load_env_file",
     "materialize_scaffold",
@@ -130,10 +142,13 @@ __all__ = [
     "load_experiment_history",
     "record_experiment_record",
     "record_experiment_result",
+    "render_task_agents_md",
     "render_progress_curve_svg",
+    "resolve_referenced_paths",
     "RolePass",
     "RunCommand",
     "run_task_command",
+    "run_task_baseline",
     "run_task_iteration",
     "run_self_critic",
     "ScaffoldPackSpec",
@@ -145,11 +160,13 @@ __all__ = [
     "SkillContribution",
     "SkillRegistry",
     "select_run_command",
+    "PlainTextTaskRequest",
     "snapshot_experiment_workspace",
     "SubsystemSpec",
     "TaskCharter",
     "TaskFamilyRegistry",
     "TaskFamilySpec",
+    "infer_task_root",
     "WorkspacePaths",
     "WorkspaceLayout",
     "resolve_workspace_paths",

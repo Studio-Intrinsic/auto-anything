@@ -8,8 +8,8 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .compiler import DefaultObjectiveCompiler
-from .execution import run_task_command
-from .history import choose_primary_signal_from_charter, record_experiment_result
+from .task_docs import render_task_agents_md
+from .task_iteration import run_task_baseline
 from .models import (
     AgentLoopSpec,
     AgentRole,
@@ -30,7 +30,6 @@ from .models import (
     WorkspaceLayout,
 )
 from .scaffold import materialize_scaffold
-from .serialization import load_task_charter
 from .workspace import resolve_workspace_paths
 
 
@@ -344,6 +343,18 @@ def bootstrap_invoice_task(
     )
     _copy_dataset(data_dir, task_root / "fixtures", task_root / "goldens")
     (task_root / "README.md").write_text(_task_readme_source(task_root.name), encoding="utf-8")
+    iteration_script = (LIBRARY_SRC.parent / "examples" / "run_task_iteration.py").resolve()
+    iteration_command = (
+        f"python3 {iteration_script} --task-root {task_root} --hypothesis ... --change-summary ..."
+    )
+    (task_root / "AGENTS.md").write_text(
+        render_task_agents_md(
+            charter=charter,
+            task_name=task_root.name,
+            iteration_command=iteration_command,
+        ),
+        encoding="utf-8",
+    )
     (task_root / "task_charter.json").write_text(
         json.dumps(asdict(charter), indent=2, sort_keys=True, default=str),
         encoding="utf-8",
@@ -352,28 +363,4 @@ def bootstrap_invoice_task(
 
 
 def run_bootstrapped_eval(task_root: Path):
-    task_root = task_root.expanduser().resolve()
-    charter = load_task_charter(task_root / "task_charter.json")
-    result = run_task_command(
-        task_root=task_root,
-        charter=charter,
-        command_name="evaluate",
-        extra_env={"AUTO_ANYTHING_SKIP_AUTO_RECORD": "1"},
-    )
-    result.check_returncode()
-    summary = json.loads((task_root / "artifacts" / "eval_summary.json").read_text(encoding="utf-8"))
-    metric_name, direction = choose_primary_signal_from_charter(charter)
-    record_experiment_result(
-        task_root=task_root,
-        summary=summary,
-        metric_name=metric_name,
-        direction=direction,
-        label=summary.get("candidate_id", "baseline"),
-        focus_subsystems=charter.focus_subsystems,
-        executed_commands=(
-            " ".join(result.command),
-            f"backend={result.backend_kind.value}",
-        ),
-        notes=tuple(result.notes) + tuple(f"sync_back={path}" for path in result.synced_paths),
-    )
-    return result
+    return run_task_baseline(task_root=task_root)["execution"]

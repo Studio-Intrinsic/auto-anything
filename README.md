@@ -39,20 +39,39 @@ cp .env.example .env.local
 OPENROUTER_API_KEY=...
 ```
 
-3. Bootstrap a starter task workspace against the included sample invoice at [examples/sample_data/sample_invoice.pdf](/Users/gmiller/code/gregm711/studio-instrinsic-env/open-source/auto-anything-env/auto-anything/examples/sample_data/sample_invoice.pdf):
+3. Bootstrap a starter workspace from plain-English intent plus referenced files:
 
 ```bash
-python3 examples/bootstrap_invoice_task.py \
+python3 examples/bootstrap_from_request.py \
   --objective "Extract invoice fields accurately while staying scalable, fast, and cheap."
 ```
 
-This creates a self-contained starter workspace under `work/invoice_extraction_demo/`, writes a baseline extraction pipeline, writes an eval harness, copies the sample invoice and expected output, and runs the baseline evaluation.
+If you do not pass `--path`, the script defaults to the bundled sample invoice at [examples/sample_data/sample_invoice.pdf](/Users/gmiller/code/gregm711/studio-instrinsic-env/open-source/auto-anything-env/auto-anything/examples/sample_data/sample_invoice.pdf). You can also point it at your own files:
+
+```bash
+python3 examples/bootstrap_from_request.py \
+  --objective "Extract invoice fields accurately while staying scalable, fast, and cheap." \
+  --path /absolute/path/to/invoices
+```
+
+This creates a self-contained task workspace under `work/<derived-task-name>/`, infers the task family, writes the starter pipeline and eval harness, writes a workspace `AGENTS.md`, and runs the baseline evaluation.
 
 4. Point me at that workspace and tell me to iterate:
 
 ```text
-Use auto-anything. I need a pipeline with these PDFs to have data extracted. Get to work in work/invoice_extraction_demo.
+Use auto-anything. I need a pipeline with these PDFs to have data extracted. Get to work in the workspace you just bootstrapped.
 ```
+
+The important property is that the front door is now plain text plus file references. The user should not need to hand-assemble a charter before the agent can start.
+
+The bootstrapped `AGENTS.md` is the agent handoff document inside the task workspace. It is generated from the charter and is meant to keep the implementation loop grounded in:
+
+- the actual mutable surface
+- the protected paths
+- the run commands
+- the subsystem map
+- the builder/critic/judge loop
+- the artifacts and history to inspect after each run
 
 ## Motivation
 
@@ -130,6 +149,33 @@ Because of that, the library should optimize for:
 - inspectable artifacts and replay slices
 
 Nothing important should be hidden in agent prompt state if it can be captured in typed workspace or charter data.
+
+## Plain-Text Front Door
+
+The intended usage model is:
+
+```text
+Use auto-anything. Optimize a pipeline for these PDFs. Keep it accurate, fast, and cheap.
+```
+
+plus referenced paths.
+
+The generic request path for that is now:
+
+- `PlainTextTaskRequest`
+- `build_brief_from_request(...)`
+- `build_bootstrap_plan_from_request(...)`
+- `bootstrap_task_from_request(...)`
+- `run_task_baseline(...)`
+- `run_task_iteration(...)`
+
+That means the library can accept loose user intent, infer a supported task family, materialize a real workspace, run a baseline, and hand off a concrete task root for iterative improvement.
+
+Today the default registry only ships one built-in family:
+
+- `invoice-document-extraction`
+
+That is intentional. The front door is generic, while supported families stay explicit and auditable.
 
 ## Execution Boundary
 

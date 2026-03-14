@@ -11,6 +11,7 @@ from .history import (
     choose_primary_signal_from_charter,
     load_experiment_history,
     record_experiment_record,
+    record_experiment_result,
 )
 from .models import (
     AgentRole,
@@ -158,6 +159,44 @@ def _knowledge_items(
     return tuple(items)
 
 
+def run_task_baseline(
+    *,
+    task_root: Path,
+    command_name: str = "evaluate",
+    label: str = "",
+    notes: tuple[str, ...] = (),
+) -> dict:
+    task_root = task_root.expanduser().resolve()
+    charter = load_task_charter(task_root / "task_charter.json")
+    execution = run_task_command(
+        task_root=task_root,
+        charter=charter,
+        command_name=command_name,
+        extra_env={"AUTO_ANYTHING_SKIP_AUTO_RECORD": "1"},
+    )
+    execution.check_returncode()
+    summary = json.loads((task_root / "artifacts" / "eval_summary.json").read_text(encoding="utf-8"))
+    metric_name, direction = choose_primary_signal_from_charter(charter)
+    history_entry = record_experiment_result(
+        task_root=task_root,
+        summary=summary,
+        metric_name=metric_name,
+        direction=direction,
+        label=label or summary.get("candidate_id", "baseline"),
+        focus_subsystems=charter.focus_subsystems,
+        executed_commands=(
+            " ".join(execution.command),
+            f"backend={execution.backend_kind.value}",
+        ),
+        notes=tuple(notes) + tuple(execution.notes) + tuple(f"sync_back={path}" for path in execution.synced_paths),
+    )
+    return {
+        "summary": summary,
+        "history_entry": history_entry,
+        "execution": execution,
+    }
+
+
 def run_task_iteration(
     *,
     task_root: Path,
@@ -276,3 +315,6 @@ def run_task_iteration(
         "history_entry": history_entry,
         "context": context,
     }
+
+
+__all__ = ["run_self_critic", "run_task_baseline", "run_task_iteration"]

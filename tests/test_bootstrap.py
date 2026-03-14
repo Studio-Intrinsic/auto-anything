@@ -33,8 +33,13 @@ class BootstrapTests(unittest.TestCase):
             self.assertTrue((task_root / "src" / "invoice_pipeline" / "openrouter_client.py").is_file())
             self.assertTrue((task_root / "src" / "invoice_pipeline" / "schema.py").is_file())
             self.assertTrue((task_root / "eval" / "run_invoice_eval.py").is_file())
+            self.assertTrue((task_root / "AGENTS.md").is_file())
             self.assertTrue((task_root / "fixtures" / "sample_invoice.pdf").is_file())
             self.assertTrue((task_root / "goldens" / "sample_invoice.expected.json").is_file())
+            agents_text = (task_root / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("## Mutable Surface", agents_text)
+            self.assertIn("src/invoice_pipeline", agents_text)
+            self.assertIn("run_task_iteration.py --task-root", agents_text)
 
             completed = run_bootstrapped_eval(task_root)
             summary = json.loads((task_root / "artifacts" / "eval_summary.json").read_text(encoding="utf-8"))
