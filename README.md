@@ -20,6 +20,11 @@ and the system should turn that into an explicit optimization program:
 
 The expected output is not limited to a trained model. It can be a Python pipeline, a remediation runtime, an evaluator-backed system, or any bounded implementation surface that can be improved experimentally.
 
+The repo is organized in two layers:
+
+- `src/auto_anything/` contains the generic library: compiler, engine, experiment memory, scaffold materialization, and task-family abstractions.
+- `examples/` contains small worked examples that exercise the generic library on concrete tasks.
+
 ## Quick Start
 
 1. Create a local env file:
@@ -92,6 +97,8 @@ The user-facing flow is:
 7. Run a built-in critical pass from the same CLI agent.
 8. Keep only candidates that improve the charter without violating hard gates.
 
+Concrete benchmarks and domains should usually live outside the core package as examples or adapters. The core library should supply the loop, memory, scaffold, and task-family machinery needed to make those examples work.
+
 ## Agent-First Workflow
 
 This library is being designed for direct in-repo use by an implementation agent such as Codex.
@@ -123,6 +130,21 @@ Because of that, the library should optimize for:
 - inspectable artifacts and replay slices
 
 Nothing important should be hidden in agent prompt state if it can be captured in typed workspace or charter data.
+
+## Execution Boundary
+
+The optimizer and the candidate should not be the same process boundary.
+
+`auto-anything` now has a pluggable execution backend layer:
+
+- `direct_subprocess`
+  - runs declared commands directly in the task workspace
+- `isolated_workspace`
+  - copies the workspace to a temporary location
+  - runs the command there
+  - syncs configured paths such as `artifacts/` back into the live workspace
+
+This is the first step toward Agentica-style execution discipline without importing a full server/runtime stack. The orchestrator stays simple and local, while candidate and eval commands can run behind a clearer host/guest boundary.
 
 ## Subsystem-Scoped Iteration
 
@@ -351,7 +373,7 @@ and snapshots the current workspace into local git so later experiments can buil
 To record a real iteration after you edit the pipeline, run:
 
 ```bash
-python3 examples/run_invoice_iteration.py \
+python3 examples/run_task_iteration.py \
   --task-root work/invoice_extraction_demo \
   --hypothesis "Improving normalization should reduce date parsing brittleness." \
   --change-summary "Refined normalization logic for invoice dates." \

@@ -13,11 +13,11 @@ if str(SRC) not in sys.path:
 
 from auto_anything.history import load_experiment_history
 from auto_anything.invoice_bootstrap import bootstrap_invoice_task, run_bootstrapped_eval
-from auto_anything.invoice_iteration import run_invoice_iteration
+from auto_anything.task_iteration import run_task_iteration
 
 
 class InvoiceIterationTests(unittest.TestCase):
-    def test_run_invoice_iteration_records_authoritative_experiment(self) -> None:
+    def test_run_task_iteration_records_authoritative_experiment(self) -> None:
         sample_data = ROOT / "examples" / "sample_data"
         with tempfile.TemporaryDirectory() as tmpdir:
             task_root = Path(tmpdir) / "invoice_task"
@@ -33,13 +33,14 @@ class InvoiceIterationTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            result = run_invoice_iteration(
+            result = run_task_iteration(
                 task_root=task_root,
                 hypothesis="A small normalization adjustment may improve stability.",
                 change_summary="Touched normalization to prepare for future parsing cleanup.",
                 label="iteration-1",
                 focus_subsystems=("normalization",),
                 notes=("Testing authoritative iteration recording.",),
+                command_name="evaluate",
             )
 
             history = load_experiment_history(task_root)

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
-from dataclasses import replace
 from pathlib import Path
 
 from .engine import ExperimentEngine
+from .execution import run_task_command
 from .history import (
     build_experiment_context,
     choose_primary_signal_from_charter,
@@ -159,7 +158,7 @@ def _knowledge_items(
     return tuple(items)
 
 
-def run_invoice_iteration(
+def run_task_iteration(
     *,
     task_root: Path,
     hypothesis: str,
@@ -167,22 +166,20 @@ def run_invoice_iteration(
     label: str = "",
     focus_subsystems: tuple[str, ...] = (),
     notes: tuple[str, ...] = (),
+    command_name: str = "evaluate",
 ) -> dict:
     task_root = task_root.expanduser().resolve()
     charter = load_task_charter(task_root / "task_charter.json")
     resolved_focus = focus_subsystems or charter.focus_subsystems
     touched_paths = _worktree_paths(task_root)
 
-    env = dict(os.environ)
-    env["AUTO_ANYTHING_SKIP_AUTO_RECORD"] = "1"
-    subprocess.run(
-        ["python3", "eval/run_invoice_eval.py"],
-        cwd=str(task_root),
-        check=True,
-        capture_output=True,
-        text=True,
-        env=env,
+    execution = run_task_command(
+        task_root=task_root,
+        charter=charter,
+        command_name=command_name,
+        extra_env={"AUTO_ANYTHING_SKIP_AUTO_RECORD": "1"},
     )
+    execution.check_returncode()
     candidate_summary = json.loads((task_root / "artifacts" / "eval_summary.json").read_text(encoding="utf-8"))
     candidate_report = evaluation_report_from_summary(candidate_summary)
 
@@ -225,8 +222,15 @@ def run_invoice_iteration(
                 summary=change_summary,
                 role=AgentRole.BUILDER,
                 touched_paths=touched_paths,
-                executed_commands=("python3 eval/run_invoice_eval.py",),
-                notes=(hypothesis,),
+                executed_commands=(
+                    " ".join(execution.command),
+                    f"backend={execution.backend_kind.value}",
+                ),
+                notes=(
+                    hypothesis,
+                    f"duration_seconds={execution.duration_seconds:.3f}",
+                    *(f"sync_back={path}" for path in execution.synced_paths),
+                ),
             ),
             IterationStep(
                 summary="Automatic self-critic pass",

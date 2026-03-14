@@ -14,15 +14,16 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from auto_anything.invoice_bootstrap import load_env_file
-from auto_anything.invoice_iteration import run_invoice_iteration
+from auto_anything.task_iteration import run_task_iteration
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Record an authoritative invoice experiment iteration.")
-    parser.add_argument("--task-root", default=str(DEFAULT_TASK_ROOT), help="Bootstrapped invoice task workspace.")
+    parser = argparse.ArgumentParser(description="Record one authoritative experiment iteration against a bootstrapped task workspace.")
+    parser.add_argument("--task-root", default=str(DEFAULT_TASK_ROOT), help="Bootstrapped task workspace.")
     parser.add_argument("--hypothesis", required=True, help="What you expect this iteration to improve.")
     parser.add_argument("--change-summary", required=True, help="Short summary of the changes made before evaluation.")
     parser.add_argument("--label", default="", help="Optional experiment label.")
+    parser.add_argument("--command-name", default="evaluate", help="Run command name from task_charter.json.")
     parser.add_argument(
         "--focus-subsystem",
         action="append",
@@ -40,13 +41,14 @@ def main() -> int:
         print("OPENROUTER_API_KEY is not set.", file=sys.stderr)
         return 1
 
-    result = run_invoice_iteration(
+    result = run_task_iteration(
         task_root=Path(args.task_root),
         hypothesis=args.hypothesis,
         change_summary=args.change_summary,
         label=args.label,
         focus_subsystems=tuple(args.focus_subsystem),
         notes=tuple(args.note),
+        command_name=args.command_name,
     )
     print(json.dumps(result["decision"], indent=2, sort_keys=True))
     print(f"Experiment record: {Path(args.task_root) / 'artifacts' / 'experiment_history.json'}")

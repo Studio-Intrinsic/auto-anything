@@ -13,6 +13,8 @@ from .models import (
     CounterbalanceMode,
     CritiqueSeverity,
     DataAsset,
+    ExecutionBackendConfig,
+    ExecutionBackendKind,
     EvaluationPlan,
     EvaluationReport,
     ObjectiveSignal,
@@ -122,6 +124,23 @@ def task_charter_from_dict(payload: dict) -> TaskCharter:
             artifacts_dir=payload["workspace_layout"].get("artifacts_dir", "artifacts"),
             replay_dir=payload["workspace_layout"].get("replay_dir", "replay"),
             notes=tuple(payload["workspace_layout"].get("notes", [])),
+        ),
+        execution_backend=ExecutionBackendConfig(
+            kind=ExecutionBackendKind(
+                payload.get("execution_backend", {}).get("kind", ExecutionBackendKind.DIRECT_SUBPROCESS.value)
+            ),
+            env_allowlist=tuple(
+                payload.get("execution_backend", {}).get(
+                    "env_allowlist", ExecutionBackendConfig().env_allowlist
+                )
+            ),
+            inherit_env=bool(payload.get("execution_backend", {}).get("inherit_env", True)),
+            sync_back_paths=tuple(
+                payload.get("execution_backend", {}).get(
+                    "sync_back_paths", ExecutionBackendConfig().sync_back_paths
+                )
+            ),
+            notes=tuple(payload.get("execution_backend", {}).get("notes", [])),
         ),
         focus_subsystems=tuple(payload.get("focus_subsystems", [])),
         agent_runtime=AgentRuntimeConfig(

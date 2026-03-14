@@ -191,6 +191,7 @@ class DefaultObjectiveCompiler(ObjectiveCompiler):
                 notes=decomposition_hints,
             ),
             workspace_layout=brief.workspace_layout,
+            execution_backend=brief.execution_backend,
             focus_subsystems=focus_subsystems,
             agent_runtime=brief.agent_runtime,
             agent_loop=brief.agent_loop,

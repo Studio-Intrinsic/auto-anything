@@ -17,6 +17,8 @@ from auto_anything.models import (
     Constraint,
     ConstraintLevel,
     DataAsset,
+    ExecutionBackendConfig,
+    ExecutionBackendKind,
     ObjectiveBrief,
     ObjectiveSignal,
     RolePass,
@@ -101,6 +103,10 @@ class CompilerTests(unittest.TestCase):
                 RunCommand(name="eval", command=("python", "scripts/eval.py")),
             ),
             workspace_layout=WorkspaceLayout(candidate_dir="pipeline"),
+            execution_backend=ExecutionBackendConfig(
+                kind=ExecutionBackendKind.ISOLATED_WORKSPACE,
+                sync_back_paths=("artifacts", "replay"),
+            ),
             agent_runtime=AgentRuntimeConfig(
                 provider="openrouter",
                 api_key_env="OPENROUTER_API_KEY",
@@ -124,6 +130,8 @@ class CompilerTests(unittest.TestCase):
             ("src/invoice_pipeline", "src/invoice_pipeline/extract.py"),
         )
         self.assertEqual(charter.workspace_layout.candidate_dir, "pipeline")
+        self.assertEqual(charter.execution_backend.kind, ExecutionBackendKind.ISOLATED_WORKSPACE)
+        self.assertEqual(charter.execution_backend.sync_back_paths, ("artifacts", "replay"))
         self.assertEqual(charter.run_commands[0].name, "eval")
         self.assertEqual(charter.agent_runtime.provider, "openrouter")
         self.assertEqual(charter.agent_runtime.api_key_env, "OPENROUTER_API_KEY")

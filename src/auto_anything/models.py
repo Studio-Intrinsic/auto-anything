@@ -33,11 +33,23 @@ class CounterbalanceMode(str, Enum):
     SELF_CRITIC = "self_critic"
 
 
+class EvaluationMode(str, Enum):
+    EXPLICIT_BENCHMARK = "explicit_benchmark"
+    PARTIAL_LABELS = "partial_labels"
+    WEAK_SUPERVISION = "weak_supervision"
+    INTERACTIVE_ACCEPTANCE = "interactive_acceptance"
+
+
 class CritiqueSeverity(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
+
+
+class ExecutionBackendKind(str, Enum):
+    DIRECT_SUBPROCESS = "direct_subprocess"
+    ISOLATED_WORKSPACE = "isolated_workspace"
 
 
 @dataclass(frozen=True)
@@ -133,6 +145,73 @@ class WorkspaceLayout:
 
 
 @dataclass(frozen=True)
+class ExecutionBackendConfig:
+    kind: ExecutionBackendKind = ExecutionBackendKind.DIRECT_SUBPROCESS
+    env_allowlist: tuple[str, ...] = (
+        "PATH",
+        "HOME",
+        "PYTHONPATH",
+        "VIRTUAL_ENV",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MODEL",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "AUTO_ANYTHING_SKIP_AUTO_RECORD",
+    )
+    inherit_env: bool = True
+    sync_back_paths: tuple[str, ...] = ("artifacts",)
+    notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ScaffoldPackSpec:
+    scaffold_id: str
+    scaffold_dir: str
+    description: str = ""
+    placeholder_keys: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.scaffold_id.strip():
+            raise ValueError("ScaffoldPackSpec.scaffold_id must not be empty.")
+        if not self.scaffold_dir.strip():
+            raise ValueError("ScaffoldPackSpec.scaffold_dir must not be empty.")
+
+
+@dataclass(frozen=True)
+class TaskFamilySpec:
+    family_id: str
+    summary: str
+    evaluation_modes: tuple[EvaluationMode, ...]
+    default_evaluation_mode: EvaluationMode
+    scaffold: ScaffoldPackSpec
+    data_kinds: tuple[str, ...] = ()
+    objective_keywords: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.family_id.strip():
+            raise ValueError("TaskFamilySpec.family_id must not be empty.")
+        if not self.summary.strip():
+            raise ValueError("TaskFamilySpec.summary must not be empty.")
+        if self.default_evaluation_mode not in self.evaluation_modes:
+            raise ValueError("TaskFamilySpec.default_evaluation_mode must be present in evaluation_modes.")
+
+
+@dataclass(frozen=True)
+class BootstrapPlan:
+    family_id: str
+    evaluation_mode: EvaluationMode
+    scaffold_id: str
+    rationale: tuple[str, ...] = ()
+    inferred_objective_signals: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class RolePass:
     role: AgentRole
     goal: str
@@ -218,6 +297,7 @@ class ObjectiveBrief:
     allowed_tools: tuple[str, ...] = ()
     run_commands: tuple[RunCommand, ...] = ()
     workspace_layout: WorkspaceLayout = field(default_factory=WorkspaceLayout)
+    execution_backend: ExecutionBackendConfig = field(default_factory=ExecutionBackendConfig)
     agent_runtime: AgentRuntimeConfig = field(default_factory=AgentRuntimeConfig)
     agent_loop: AgentLoopSpec = field(default_factory=AgentLoopSpec)
     counterbalance: CounterbalanceConfig = field(default_factory=CounterbalanceConfig)
@@ -242,6 +322,7 @@ class TaskCharter:
     evaluation_plan: EvaluationPlan
     search_surface: SearchSurface
     workspace_layout: WorkspaceLayout
+    execution_backend: ExecutionBackendConfig = field(default_factory=ExecutionBackendConfig)
     focus_subsystems: tuple[str, ...] = ()
     agent_runtime: AgentRuntimeConfig = field(default_factory=AgentRuntimeConfig)
     agent_loop: AgentLoopSpec = field(default_factory=AgentLoopSpec)
@@ -337,3 +418,26 @@ class ExperimentRecord:
     iteration_steps: tuple[IterationStep, ...] = ()
     focus_subsystems: tuple[str, ...] = ()
     notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    command_name: str
+    command: tuple[str, ...]
+    returncode: int
+    stdout: str
+    stderr: str
+    duration_seconds: float
+    backend_kind: ExecutionBackendKind
+    working_dir: str
+    isolated_workspace: str = ""
+    synced_paths: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+
+    def check_returncode(self) -> None:
+        if self.returncode == 0:
+            return
+        raise RuntimeError(
+            f"Command '{self.command_name}' failed with exit code {self.returncode}.\n"
+            f"stdout:\n{self.stdout}\n\nstderr:\n{self.stderr}"
+        )
