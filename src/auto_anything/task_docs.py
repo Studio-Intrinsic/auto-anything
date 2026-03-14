@@ -39,6 +39,7 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
     soft_constraints = tuple(constraint.statement for constraint in charter.soft_constraints)
     focus_subsystems = charter.focus_subsystems or ("none declared",)
     iteration_command = iteration_command or "python3 <path-to-run_task_iteration.py> --task-root <task_root> --hypothesis ... --change-summary ..."
+    notes = tuple(note for note in charter.notes if note.strip())
 
     return (
         f"# AGENTS\n\n"
@@ -52,8 +53,14 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
         f"- read `task_charter.json`\n"
         f"- inspect the current experiment context in `{charter.workspace_layout.artifacts_dir}/knowledge_base.md`\n"
         f"- inspect prior runs in `{charter.workspace_layout.artifacts_dir}/experiment_history.json` and local git tags `aa-exp-*`\n"
+        f"- inspect the referenced data assets and decide what the real pipeline and evaluator need to do\n"
         f"- work inside the mutable surface first\n"
         f"- keep protected paths stable unless the charter clearly requires otherwise\n\n"
+        f"## Immediate Next Steps\n"
+        f"- replace placeholder scaffolding where needed before trusting any metrics\n"
+        f"- make the main eval command meaningful for this task\n"
+        f"- get one honest baseline into `{charter.workspace_layout.artifacts_dir}/eval_summary.json`\n"
+        f"- only then start optimizing the pipeline against that evaluator\n\n"
         f"## Mutable Surface\n"
         f"{_render_list(mutable_paths)}\n\n"
         f"## Protected Paths\n"
@@ -78,6 +85,8 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
         f"{_render_list(charter.anti_goals)}\n\n"
         f"## Decomposition Hints\n"
         f"{_render_list(charter.decomposition_hints)}\n\n"
+        f"## Notes\n"
+        f"{_render_list(notes)}\n\n"
         f"## Artifacts To Check After Each Run\n"
         f"{_render_list(artifact_paths)}\n\n"
         f"## Workflow\n"

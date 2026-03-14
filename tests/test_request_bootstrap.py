@@ -32,9 +32,9 @@ class RequestBootstrapTests(unittest.TestCase):
         brief = build_brief_from_request(request)
         plan = build_bootstrap_plan_from_request(request)
 
-        self.assertEqual(brief.data_assets[0].kind, "invoice_corpus")
+        self.assertEqual(brief.data_assets[0].kind, "pdf_document")
         self.assertEqual(brief.allowed_models, ("x-ai/grok-4.1-fast",))
-        self.assertEqual(plan.family_id, "invoice-document-extraction")
+        self.assertEqual(plan.family_id, "open-ended-task")
 
     def test_infer_task_root_uses_objective_slug(self) -> None:
         request = PlainTextTaskRequest(objective_statement="Optimize invoice extraction for speed and accuracy.")
@@ -71,7 +71,9 @@ class RequestBootstrapTests(unittest.TestCase):
             self.assertEqual(bootstrapped, task_root.resolve())
             self.assertEqual(baseline["execution"].returncode, 0)
             self.assertTrue((bootstrapped / "AGENTS.md").is_file())
-            self.assertGreaterEqual(summary["signals"]["field_accuracy"], 0.99)
+            self.assertTrue((bootstrapped / "src" / "task_pipeline" / "pipeline.py").is_file())
+            self.assertTrue((bootstrapped / "eval" / "run_task_eval.py").is_file())
+            self.assertEqual(summary["signals"]["task_quality"], 0.0)
             self.assertEqual(len(history), 1)
 
 

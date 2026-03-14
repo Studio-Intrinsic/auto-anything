@@ -29,6 +29,11 @@ from .invoice_bootstrap import (
     load_env_file,
     run_bootstrapped_eval,
 )
+from .open_bootstrap import (
+    bootstrap_open_task,
+    build_open_objective_brief,
+    compile_open_task_charter,
+)
 from .request_bootstrap import (
     PlainTextTaskRequest,
     bootstrap_task_from_request,
@@ -130,11 +135,14 @@ __all__ = [
     "infer_task_family",
     "IterationStep",
     "bootstrap_invoice_task",
+    "bootstrap_open_task",
     "bootstrap_task_from_request",
     "build_invoice_objective_brief",
     "build_bootstrap_plan_from_request",
     "build_brief_from_request",
+    "build_open_objective_brief",
     "compile_invoice_charter",
+    "compile_open_task_charter",
     "load_env_file",
     "materialize_scaffold",
     "ObjectiveBrief",

@@ -73,10 +73,11 @@ def main() -> int:
     plan = build_bootstrap_plan_from_request(request)
     task_root = bootstrap_task_from_request(request)
 
-    print(f"Inferred family: {plan.family_id}")
+    print(f"Bootstrap mode: {plan.family_id}")
     print(f"Inferred evaluation mode: {plan.evaluation_mode.value}")
     print(f"Workspace: {task_root}")
     print(f"Task charter: {task_root / 'task_charter.json'}")
+    print(f"Agent handoff: {task_root / 'AGENTS.md'}")
     print(f"Suggested default task root: {infer_task_root(request)}")
     for rationale in plan.rationale:
         print(f"- {rationale}")
@@ -90,6 +91,7 @@ def main() -> int:
     print(f"Experiment history: {task_root / 'artifacts' / 'experiment_history.json'}")
     print(f"Knowledge base: {task_root / 'artifacts' / 'knowledge_base.md'}")
     print(f"Progress curve: {task_root / 'artifacts' / 'progress_curve.svg'}")
+    print("Next step: open AGENTS.md in the workspace and complete the evaluator/pipeline setup it calls out.")
     return 0
 
 

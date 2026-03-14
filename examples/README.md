@@ -9,7 +9,8 @@ Current example:
 - `bootstrap_from_request.py`
   - the generic front door
   - takes plain-English intent plus referenced files or directories
-  - infers a supported task family, bootstraps a workspace, writes a task-local `AGENTS.md`, and runs the baseline eval
+  - synthesizes a generic workspace, writes a task-local `AGENTS.md`, and runs the initial baseline eval
+  - for open-ended tasks, the evaluator it creates is a placeholder until the agent replaces it with a real one
   - defaults to the bundled sample invoice if no path is provided
 - `invoice_extraction_quickstart.py`
   - compiles a plain-English invoice extraction objective into a typed charter

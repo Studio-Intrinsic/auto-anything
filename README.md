@@ -22,7 +22,7 @@ The expected output is not limited to a trained model. It can be a Python pipeli
 
 The repo is organized in two layers:
 
-- `src/auto_anything/` contains the generic library: compiler, engine, experiment memory, scaffold materialization, and task-family abstractions.
+- `src/auto_anything/` contains the generic library: compiler, engine, experiment memory, scaffold materialization, and open-ended bootstrap primitives.
 - `examples/` contains small worked examples that exercise the generic library on concrete tasks.
 
 ## Quick Start
@@ -54,7 +54,7 @@ python3 examples/bootstrap_from_request.py \
   --path /absolute/path/to/invoices
 ```
 
-This creates a self-contained task workspace under `work/<derived-task-name>/`, infers the task family, writes the starter pipeline and eval harness, writes a workspace `AGENTS.md`, and runs the baseline evaluation.
+This creates a self-contained task workspace under `work/<derived-task-name>/`, writes a generic starter pipeline and eval harness, writes a workspace `AGENTS.md`, and runs an initial baseline. For unknown tasks, that baseline is only a placeholder until the agent replaces the evaluator with a real one.
 
 4. Point me at that workspace and tell me to iterate:
 
@@ -116,7 +116,7 @@ The user-facing flow is:
 7. Run a built-in critical pass from the same CLI agent.
 8. Keep only candidates that improve the charter without violating hard gates.
 
-Concrete benchmarks and domains should usually live outside the core package as examples or adapters. The core library should supply the loop, memory, scaffold, and task-family machinery needed to make those examples work.
+Concrete benchmarks and domains should usually live outside the core package as examples or adapters. The core library should supply the loop, memory, scaffold, and bootstrap machinery needed to let the calling agent construct whatever task world is required.
 
 ## Agent-First Workflow
 
@@ -169,13 +169,17 @@ The generic request path for that is now:
 - `run_task_baseline(...)`
 - `run_task_iteration(...)`
 
-That means the library can accept loose user intent, infer a supported task family, materialize a real workspace, run a baseline, and hand off a concrete task root for iterative improvement.
+That means the library can accept loose user intent, synthesize a real workspace, run an initial baseline, and hand off a concrete task root for iterative improvement.
 
-Today the default registry only ships one built-in family:
+The important design choice is that bootstrap does not need to already know the task. It only needs to create a useful world with:
 
-- `invoice-document-extraction`
+- a task charter
+- a mutable pipeline surface
+- a runnable eval command
+- an `AGENTS.md` handoff
+- experiment memory and history
 
-That is intentional. The front door is generic, while supported families stay explicit and auditable.
+After that, the calling agent is expected to finish shaping the pipeline and evaluator for the actual task.
 
 ## Execution Boundary
 
