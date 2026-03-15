@@ -105,6 +105,22 @@ When model choice matters, the intended workflow is:
 
 Artificial Analysis attribution is required when using their free API. See their docs at `https://artificialanalysis.ai/api`.
 
+### Generic Primitives
+
+The library now includes a few task-agnostic helpers that are meant to work beyond document benchmarks:
+
+- `probe_candidates(...)`
+  - compare a small set of candidate systems, models, prompts, or configurations against a handful of real examples
+  - keep the runner and scorer task-specific, but keep the probe orchestration generic
+- `write_probe_report(...)`
+  - write probe summaries to JSON so the workspace can keep visible candidate-comparison artifacts
+- `load_json_manifest(...)`, `write_json_manifest(...)`
+  - simple manifest helpers for local corpora
+- `slice_rows(...)`, `sample_rows(...)`, `stratified_sample_rows(...)`
+  - generic dataset slicing helpers for quick baselines and replay sets
+
+The design goal is to keep these generic enough that they are useful for document extraction, code optimization, remediation pipelines, and non-AI tasks, without baking domain assumptions into the core library.
+
 ## Motivation
 
 We want the autonomous experiment loop from projects like `autoresearch`, but generalized into something that is useful outside a single research setup.

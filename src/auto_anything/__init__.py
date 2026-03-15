@@ -7,6 +7,13 @@ from .artificial_analysis_api import (
     shortlist_artificial_analysis_llms,
 )
 from .compiler import DefaultObjectiveCompiler
+from .data_slicing import (
+    load_json_manifest,
+    sample_rows,
+    slice_rows,
+    stratified_sample_rows,
+    write_json_manifest,
+)
 from .engine import ExperimentEngine
 from .execution import (
     DirectSubprocessBackend,
@@ -112,6 +119,14 @@ from .model_selection import (
     recommend_openrouter_models_for_task,
     score_model_catalog_match,
 )
+from .model_probe import (
+    CandidateProbeSummary,
+    ProbeExample,
+    ProbeExampleResult,
+    ProbeExecutionMeta,
+    probe_candidates,
+    write_probe_report,
+)
 from .scaffold import materialize_scaffold
 from .skills import SkillRegistry
 from .task_docs import render_task_agents_md
@@ -186,9 +201,11 @@ __all__ = [
     "estimate_openrouter_cost",
     "extract_openrouter_usage",
     "fetch_openrouter_generation",
+    "CandidateProbeSummary",
     "load_env_file",
     "list_artificial_analysis_llms",
     "list_openrouter_models",
+    "load_json_manifest",
     "materialize_scaffold",
     "match_openrouter_models_to_artificial_analysis",
     "ModelCatalogMatch",
@@ -207,6 +224,10 @@ __all__ = [
     "RunCommand",
     "parse_artificial_analysis_llm",
     "parse_openrouter_model",
+    "ProbeExample",
+    "ProbeExampleResult",
+    "ProbeExecutionMeta",
+    "probe_candidates",
     "run_task_command",
     "run_task_baseline",
     "run_task_iteration",
@@ -224,6 +245,9 @@ __all__ = [
     "PlainTextTaskRequest",
     "snapshot_experiment_workspace",
     "shortlist_artificial_analysis_llms",
+    "sample_rows",
+    "slice_rows",
+    "stratified_sample_rows",
     "SubsystemSpec",
     "TaskCharter",
     "TaskFamilyRegistry",
@@ -231,6 +255,8 @@ __all__ = [
     "infer_task_root",
     "WorkspacePaths",
     "WorkspaceLayout",
+    "write_json_manifest",
+    "write_probe_report",
     "resolve_workspace_paths",
     "run_bootstrapped_eval",
     "filter_artificial_analysis_models",

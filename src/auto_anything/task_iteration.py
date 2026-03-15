@@ -63,6 +63,14 @@ def _path_matches_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     return any(path == prefix or path.startswith(prefix.rstrip("/") + "/") for prefix in prefixes)
 
 
+def _touched_subsystem_ids(charter: TaskCharter, touched_paths: tuple[str, ...]) -> tuple[str, ...]:
+    subsystem_ids: list[str] = []
+    for subsystem in charter.search_surface.subsystems:
+        if any(_path_matches_prefix(path, subsystem.owned_paths) for path in touched_paths):
+            subsystem_ids.append(subsystem.subsystem_id)
+    return tuple(subsystem_ids)
+
+
 def run_self_critic(
     *,
     task_root: Path,
@@ -72,6 +80,7 @@ def run_self_critic(
     change_summary: str,
 ) -> CounterbalanceReport:
     findings: list[CritiqueFinding] = []
+    notes: list[str] = ["Automatic self-critic pass over path hygiene and modularity risks."]
     protected_paths = charter.search_surface.protected_paths
     for path in touched_paths:
         if _path_matches_prefix(path, protected_paths):
@@ -104,18 +113,24 @@ def run_self_critic(
         if subsystem.subsystem_id in focus_subsystems
         for path in subsystem.owned_paths
     )
+    touched_subsystems = _touched_subsystem_ids(charter, touched_paths)
     if focus_subsystems and owned_paths and not any(
         _path_matches_prefix(path, owned_paths)
         for path in touched_paths
     ):
-        findings.append(
-            CritiqueFinding(
-                finding_id="focus-drift",
-                summary="Focused iteration did not touch any files owned by the target subsystem.",
-                severity=CritiqueSeverity.MEDIUM,
-                rationale="The iteration may not be aligned with its declared subsystem focus.",
+        if len(touched_subsystems) > 1:
+            notes.append(
+                "Focused iteration touched multiple subsystems outside its declared focus; treating this as broader-scope work instead of a focus-drift penalty."
             )
-        )
+        else:
+            findings.append(
+                CritiqueFinding(
+                    finding_id="focus-drift",
+                    summary="Focused iteration did not touch any files owned by the target subsystem.",
+                    severity=CritiqueSeverity.MEDIUM,
+                    rationale="The iteration may not be aligned with its declared subsystem focus.",
+                )
+            )
 
     if "monolith" in change_summary.lower() or "all-in-one" in change_summary.lower():
         findings.append(
@@ -130,7 +145,7 @@ def run_self_critic(
     return CounterbalanceReport(
         mode=CounterbalanceMode.SELF_CRITIC,
         findings=tuple(findings),
-        notes=("Automatic self-critic pass over path hygiene and modularity risks.",),
+        notes=tuple(notes),
     )
 
 
