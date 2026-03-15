@@ -40,6 +40,20 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
     focus_subsystems = charter.focus_subsystems or ("none declared",)
     iteration_command = iteration_command or "python3 <path-to-run_task_iteration.py> --task-root <task_root> --hypothesis ... --change-summary ..."
     notes = tuple(note for note in charter.notes if note.strip())
+    artifact_lines = []
+    for artifact in charter.optimizable_artifacts:
+        artifact_lines.append(
+            f"- `{artifact.artifact_id}`: kind=`{artifact.kind.value}` location=`{artifact.location or '.'}`"
+        )
+        if artifact.mutable_paths:
+            artifact_lines.append(
+                f"  mutable paths: {', '.join(f'`{path}`' for path in artifact.mutable_paths)}"
+            )
+        if artifact.description:
+            artifact_lines.append(f"  description: {artifact.description}")
+        if artifact.serialization_hint:
+            artifact_lines.append(f"  serialization: `{artifact.serialization_hint}`")
+    artifact_block = "\n".join(artifact_lines) if artifact_lines else "- none declared"
 
     return (
         f"# AGENTS\n\n"
@@ -47,6 +61,8 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
         f"- task: `{task_name}`\n"
         f"- charter id: `{charter.charter_id}`\n"
         f"- objective: {charter.objective_statement}\n"
+        f"- optimization mode: `{charter.optimization_mode.value}`\n"
+        f"- search strategy: `{charter.search_strategy.kind.value}` (beam_width=`{charter.search_strategy.beam_width}`)\n"
         f"- default model: `{charter.agent_runtime.default_model or 'unspecified'}`\n"
         f"- allowed models:\n{_render_list(charter.allowed_models, empty='- use charter default')}\n\n"
         f"## Start Here\n"
@@ -65,6 +81,8 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
         f"- only then start optimizing the pipeline against that evaluator\n\n"
         f"## Mutable Surface\n"
         f"{_render_list(mutable_paths)}\n\n"
+        f"## Optimizable Artifacts\n"
+        f"{artifact_block}\n\n"
         f"## Protected Paths\n"
         f"{_render_list(protected_paths)}\n\n"
         f"## Run Commands\n"

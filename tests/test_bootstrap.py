@@ -38,6 +38,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertTrue((task_root / "goldens" / "sample_invoice.expected.json").is_file())
             agents_text = (task_root / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("## Mutable Surface", agents_text)
+            self.assertIn("## Optimizable Artifacts", agents_text)
             self.assertIn("src/invoice_pipeline", agents_text)
             self.assertIn("run_task_iteration.py --task-root", agents_text)
             self.assertIn("list_openrouter_models()", agents_text)

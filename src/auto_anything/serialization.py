@@ -16,10 +16,16 @@ from .models import (
     ExecutionBackendConfig,
     ExecutionBackendKind,
     EvaluationPlan,
+    EvaluatorDiagnostic,
     EvaluationReport,
+    OptimizationMode,
+    OptimizableArtifact,
+    OptimizableArtifactKind,
     ObjectiveSignal,
     RolePass,
     RunCommand,
+    SearchStrategyKind,
+    SearchStrategySpec,
     SearchSurface,
     SignalDirection,
     SignalKind,
@@ -82,6 +88,18 @@ def _role_pass_from_dict(payload: dict) -> RolePass:
     )
 
 
+def _optimizable_artifact_from_dict(payload: dict) -> OptimizableArtifact:
+    return OptimizableArtifact(
+        artifact_id=payload["artifact_id"],
+        kind=OptimizableArtifactKind(payload.get("kind", OptimizableArtifactKind.WORKSPACE_SLICE.value)),
+        location=payload.get("location", ""),
+        mutable_paths=tuple(payload.get("mutable_paths", [])),
+        description=payload.get("description", ""),
+        serialization_hint=payload.get("serialization_hint", ""),
+        notes=tuple(payload.get("notes", [])),
+    )
+
+
 def task_charter_from_dict(payload: dict) -> TaskCharter:
     return TaskCharter(
         charter_id=payload["charter_id"],
@@ -106,6 +124,18 @@ def task_charter_from_dict(payload: dict) -> TaskCharter:
                 for item in payload["evaluation_plan"]["signals"]
             ),
             notes=tuple(payload["evaluation_plan"].get("notes", [])),
+        ),
+        optimizable_artifacts=tuple(
+            _optimizable_artifact_from_dict(item)
+            for item in payload.get("optimizable_artifacts", [])
+        ),
+        optimization_mode=OptimizationMode(payload.get("optimization_mode", OptimizationMode.SINGLE_TASK.value)),
+        search_strategy=SearchStrategySpec(
+            kind=SearchStrategyKind(
+                payload.get("search_strategy", {}).get("kind", SearchStrategyKind.PROBE_AND_COMMIT.value)
+            ),
+            beam_width=int(payload.get("search_strategy", {}).get("beam_width", 1)),
+            notes=tuple(payload.get("search_strategy", {}).get("notes", [])),
         ),
         search_surface=SearchSurface(
             mutable_paths=tuple(payload["search_surface"].get("mutable_paths", [])),
@@ -186,5 +216,15 @@ def evaluation_report_from_summary(summary: dict) -> EvaluationReport:
         signals=tuple(
             SignalResult(name=name, value=float(value))
             for name, value in summary.get("signals", {}).items()
+        ),
+        diagnostics=tuple(
+            EvaluatorDiagnostic(
+                diagnostic_id=item.get("diagnostic_id", ""),
+                summary=item["summary"],
+                severity=CritiqueSeverity(item.get("severity", CritiqueSeverity.MEDIUM.value)),
+                related_signals=tuple(item.get("related_signals", [])),
+                notes=tuple(item.get("notes", [])),
+            )
+            for item in summary.get("diagnostics", [])
         ),
     )

@@ -52,6 +52,27 @@ class ExecutionBackendKind(str, Enum):
     ISOLATED_WORKSPACE = "isolated_workspace"
 
 
+class OptimizableArtifactKind(str, Enum):
+    GENERIC_TEXT = "generic_text"
+    CODE_MODULE = "code_module"
+    CONFIG = "config"
+    PROMPT = "prompt"
+    WORKSPACE_SLICE = "workspace_slice"
+
+
+class OptimizationMode(str, Enum):
+    SINGLE_TASK = "single_task"
+    MULTI_TASK = "multi_task"
+    GENERALIZATION = "generalization"
+
+
+class SearchStrategyKind(str, Enum):
+    GREEDY_LOCAL = "greedy_local"
+    PROBE_AND_COMMIT = "probe_and_commit"
+    BEAM = "beam"
+    MULTI_OBJECTIVE = "multi_objective"
+
+
 @dataclass(frozen=True)
 class DataAsset:
     name: str
@@ -115,6 +136,21 @@ class SearchSurface:
     entrypoints: tuple[str, ...] = ()
     subsystems: tuple[SubsystemSpec, ...] = ()
     notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class OptimizableArtifact:
+    artifact_id: str
+    kind: OptimizableArtifactKind = OptimizableArtifactKind.WORKSPACE_SLICE
+    location: str = ""
+    mutable_paths: tuple[str, ...] = ()
+    description: str = ""
+    serialization_hint: str = ""
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.artifact_id.strip():
+            raise ValueError("OptimizableArtifact.artifact_id must not be empty.")
 
 
 @dataclass(frozen=True)
@@ -288,6 +324,9 @@ class ObjectiveBrief:
     anti_goals: tuple[str, ...] = ()
     constraints: tuple[str, ...] = ()
     explicit_signals: tuple[ObjectiveSignal, ...] = ()
+    optimizable_artifacts: tuple[OptimizableArtifact, ...] = ()
+    optimization_mode: OptimizationMode = OptimizationMode.SINGLE_TASK
+    search_strategy: "SearchStrategySpec" = field(default_factory=lambda: SearchStrategySpec())
     mutable_paths: tuple[str, ...] = ()
     protected_paths: tuple[str, ...] = ()
     entrypoints: tuple[str, ...] = ()
@@ -323,6 +362,9 @@ class TaskCharter:
     evaluation_plan: EvaluationPlan
     search_surface: SearchSurface
     workspace_layout: WorkspaceLayout
+    optimizable_artifacts: tuple[OptimizableArtifact, ...] = ()
+    optimization_mode: OptimizationMode = OptimizationMode.SINGLE_TASK
+    search_strategy: "SearchStrategySpec" = field(default_factory=lambda: SearchStrategySpec())
     execution_backend: ExecutionBackendConfig = field(default_factory=ExecutionBackendConfig)
     focus_subsystems: tuple[str, ...] = ()
     agent_runtime: AgentRuntimeConfig = field(default_factory=AgentRuntimeConfig)
@@ -353,9 +395,19 @@ class SignalResult:
 
 
 @dataclass(frozen=True)
+class EvaluatorDiagnostic:
+    diagnostic_id: str
+    summary: str
+    severity: CritiqueSeverity = CritiqueSeverity.MEDIUM
+    related_signals: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class EvaluationReport:
     candidate_id: str
     signals: tuple[SignalResult, ...]
+    diagnostics: tuple[EvaluatorDiagnostic, ...] = ()
     artifacts: tuple[EvaluationArtifact, ...] = ()
     notes: tuple[str, ...] = ()
 
@@ -442,3 +494,14 @@ class ExecutionResult:
             f"Command '{self.command_name}' failed with exit code {self.returncode}.\n"
             f"stdout:\n{self.stdout}\n\nstderr:\n{self.stderr}"
         )
+
+
+@dataclass(frozen=True)
+class SearchStrategySpec:
+    kind: SearchStrategyKind = SearchStrategyKind.PROBE_AND_COMMIT
+    beam_width: int = 1
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.beam_width <= 0:
+            raise ValueError("SearchStrategySpec.beam_width must be positive.")

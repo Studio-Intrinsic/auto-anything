@@ -141,6 +141,13 @@ The design rule is:
 - generic in the loop
 - concrete in the charter
 
+The optimizer contract is now more explicit too:
+
+- an `OptimizableArtifact` tells the system what is actually being improved
+- `OptimizationMode` makes it explicit whether we are optimizing one task, many tasks, or for generalization
+- `SearchStrategySpec` makes the search policy inspectable instead of implicit
+- `EvaluationReport.diagnostics` separates evaluator findings from raw scalar scores
+
 ## What This Library Is
 
 `auto-anything` is the abstract system layer behind task-specific autonomous optimization.

@@ -9,6 +9,8 @@ from .models import (
     EvaluationPlan,
     ObjectiveBrief,
     ObjectiveSignal,
+    OptimizableArtifact,
+    OptimizableArtifactKind,
     SearchSurface,
     SignalDirection,
     SignalKind,
@@ -125,6 +127,33 @@ def _merge_subsystems(
     return tuple(merged.values())
 
 
+def _default_optimizable_artifacts(
+    brief: ObjectiveBrief,
+    *,
+    mutable_paths: tuple[str, ...],
+    entrypoints: tuple[str, ...],
+) -> tuple[OptimizableArtifact, ...]:
+    if brief.optimizable_artifacts:
+        return brief.optimizable_artifacts
+    location = brief.workspace_layout.candidate_dir or "."
+    serialization_hint = "python_module" if any(path.endswith(".py") for path in (*mutable_paths, *entrypoints)) else ""
+    description = (
+        "Primary mutable candidate surface materialized in the local workspace."
+        if mutable_paths or entrypoints
+        else "Primary mutable candidate surface for this task."
+    )
+    return (
+        OptimizableArtifact(
+            artifact_id="candidate-surface",
+            kind=OptimizableArtifactKind.WORKSPACE_SLICE,
+            location=location,
+            mutable_paths=_dedupe_preserve_order(mutable_paths + entrypoints),
+            description=description,
+            serialization_hint=serialization_hint,
+        ),
+    )
+
+
 class DefaultObjectiveCompiler(ObjectiveCompiler):
     def compile(self, brief: ObjectiveBrief, skills: tuple[SkillPack, ...] = ()) -> TaskCharter:
         contributions = tuple(skill.contribute(brief) for skill in skills)
@@ -164,6 +193,11 @@ class DefaultObjectiveCompiler(ObjectiveCompiler):
                 "ObjectiveBrief.focus_subsystems referenced unknown subsystem ids: "
                 + ", ".join(unknown_focus)
             )
+        optimizable_artifacts = _default_optimizable_artifacts(
+            brief,
+            mutable_paths=mutable_paths,
+            entrypoints=_dedupe_preserve_order(brief.entrypoints),
+        )
         charter_id = _slugify(brief.title)
         return TaskCharter(
             charter_id=charter_id,
@@ -183,6 +217,9 @@ class DefaultObjectiveCompiler(ObjectiveCompiler):
                     )
                 ),
             ),
+            optimizable_artifacts=optimizable_artifacts,
+            optimization_mode=brief.optimization_mode,
+            search_strategy=brief.search_strategy,
             search_surface=SearchSurface(
                 mutable_paths=mutable_paths,
                 protected_paths=protected_paths,

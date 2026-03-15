@@ -19,10 +19,14 @@ from auto_anything.models import (
     DataAsset,
     ExecutionBackendConfig,
     ExecutionBackendKind,
+    OptimizationMode,
     ObjectiveBrief,
     ObjectiveSignal,
+    OptimizableArtifactKind,
     RolePass,
     RunCommand,
+    SearchStrategyKind,
+    SearchStrategySpec,
     SignalDirection,
     SignalKind,
     SkillContribution,
@@ -107,6 +111,8 @@ class CompilerTests(unittest.TestCase):
                 kind=ExecutionBackendKind.ISOLATED_WORKSPACE,
                 sync_back_paths=("artifacts", "replay"),
             ),
+            optimization_mode=OptimizationMode.MULTI_TASK,
+            search_strategy=SearchStrategySpec(kind=SearchStrategyKind.PROBE_AND_COMMIT, beam_width=3),
             agent_runtime=AgentRuntimeConfig(
                 provider="openrouter",
                 api_key_env="OPENROUTER_API_KEY",
@@ -132,6 +138,9 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(charter.workspace_layout.candidate_dir, "pipeline")
         self.assertEqual(charter.execution_backend.kind, ExecutionBackendKind.ISOLATED_WORKSPACE)
         self.assertEqual(charter.execution_backend.sync_back_paths, ("artifacts", "replay"))
+        self.assertEqual(charter.optimization_mode, OptimizationMode.MULTI_TASK)
+        self.assertEqual(charter.search_strategy.kind, SearchStrategyKind.PROBE_AND_COMMIT)
+        self.assertEqual(charter.search_strategy.beam_width, 3)
         self.assertEqual(charter.run_commands[0].name, "eval")
         self.assertEqual(charter.agent_runtime.provider, "openrouter")
         self.assertEqual(charter.agent_runtime.api_key_env, "OPENROUTER_API_KEY")
@@ -144,6 +153,9 @@ class CompilerTests(unittest.TestCase):
             tuple(signal.name for signal in charter.evaluation_plan.signals),
             ("field_accuracy", "schema_valid"),
         )
+        self.assertEqual(charter.optimizable_artifacts[0].artifact_id, "candidate-surface")
+        self.assertEqual(charter.optimizable_artifacts[0].kind, OptimizableArtifactKind.WORKSPACE_SLICE)
+        self.assertIn("src/invoice_pipeline/extract.py", charter.optimizable_artifacts[0].mutable_paths)
         self.assertEqual(len(charter.hard_constraints), 3)
 
     def test_derives_default_rubric_signal_when_no_metric_is_supplied(self) -> None:
