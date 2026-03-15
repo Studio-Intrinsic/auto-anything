@@ -15,6 +15,14 @@ from auto_anything.artificial_analysis_api import (
     parse_artificial_analysis_llm,
     shortlist_artificial_analysis_llms,
 )
+from auto_anything.model_selection import (
+    ModelSelectionWeights,
+    filter_artificial_analysis_models,
+    filter_openrouter_models,
+    match_openrouter_models_to_artificial_analysis,
+    recommend_openrouter_models_for_task,
+    score_model_catalog_match,
+)
 from auto_anything.openrouter_api import (
     OpenRouterModel,
     OpenRouterPricing,
@@ -164,6 +172,118 @@ class ArtificialAnalysisApiTests(unittest.TestCase):
             limit=5,
         )
         self.assertEqual(tuple(model.slug for model in shortlisted), ("b",))
+
+
+class ModelSelectionTests(unittest.TestCase):
+    def test_filter_openrouter_models(self) -> None:
+        models = (
+            OpenRouterModel(model_id="google/gemini-2.5-flash-lite", input_modalities=("text", "image"), pricing=OpenRouterPricing(prompt=1e-07, completion=4e-07)),
+            OpenRouterModel(model_id="openai/gpt-5-mini", input_modalities=("text",), pricing=OpenRouterPricing(prompt=2.5e-07, completion=2e-06)),
+        )
+        filtered = filter_openrouter_models(models, required_input_modality="image", creator_allowlist=("google",))
+        self.assertEqual(tuple(model.model_id for model in filtered), ("google/gemini-2.5-flash-lite",))
+
+    def test_filter_artificial_analysis_models(self) -> None:
+        models = (
+            ArtificialAnalysisLLM(
+                model_id="g1",
+                name="Gemini 3.1 Flash Lite Preview",
+                slug="gemini-3-1-flash-lite-preview",
+                creator_slug="google",
+                evaluations={"artificial_analysis_intelligence_index": 33.5},
+                pricing=ArtificialAnalysisPricing(price_1m_blended_3_to_1=0.563),
+                median_output_tokens_per_second=260.334,
+            ),
+            ArtificialAnalysisLLM(
+                model_id="g2",
+                name="Gemini 3.1 Pro Preview",
+                slug="gemini-3-1-pro-preview",
+                creator_slug="google",
+                evaluations={"artificial_analysis_intelligence_index": 57.2},
+                pricing=ArtificialAnalysisPricing(price_1m_blended_3_to_1=4.5),
+                median_output_tokens_per_second=121.375,
+            ),
+        )
+        filtered = filter_artificial_analysis_models(
+            models,
+            creator_allowlist=("google",),
+            benchmark_key="artificial_analysis_intelligence_index",
+            max_blended_price_1m=1.0,
+        )
+        self.assertEqual(tuple(model.slug for model in filtered), ("gemini-3-1-flash-lite-preview",))
+
+    def test_match_and_score_model_catalogs(self) -> None:
+        openrouter_models = (
+            OpenRouterModel(
+                model_id="google/gemini-2.5-flash-lite",
+                input_modalities=("text", "image"),
+                pricing=OpenRouterPricing(prompt=1e-07, completion=4e-07),
+            ),
+        )
+        aa_models = (
+            ArtificialAnalysisLLM(
+                model_id="g1",
+                name="Gemini 3.1 Flash Lite Preview",
+                slug="gemini-3-1-flash-lite-preview",
+                creator_slug="google",
+                evaluations={"artificial_analysis_intelligence_index": 33.5, "artificial_analysis_coding_index": 30.0},
+                pricing=ArtificialAnalysisPricing(price_1m_blended_3_to_1=0.563),
+                median_output_tokens_per_second=260.334,
+                release_date="2025-10",
+            ),
+        )
+        matches = match_openrouter_models_to_artificial_analysis(openrouter_models, aa_models)
+        self.assertEqual(len(matches), 1)
+        self.assertGreater(matches[0].match_confidence, 0.2)
+        candidate = score_model_catalog_match(matches[0], weights=ModelSelectionWeights())
+        self.assertEqual(candidate.openrouter_model_id, "google/gemini-2.5-flash-lite")
+        self.assertEqual(candidate.artificial_analysis_slug, "gemini-3-1-flash-lite-preview")
+
+    def test_recommend_function_is_patchable_and_ranked(self) -> None:
+        import auto_anything.model_selection as model_selection
+
+        original_list_openrouter_models = model_selection.list_openrouter_models
+        original_list_artificial_analysis_llms = model_selection.list_artificial_analysis_llms
+        try:
+            model_selection.list_openrouter_models = lambda available_only=False: (
+                OpenRouterModel(
+                    model_id="google/gemini-2.5-flash-lite",
+                    input_modalities=("text", "image"),
+                    pricing=OpenRouterPricing(prompt=1e-07, completion=4e-07),
+                ),
+                OpenRouterModel(
+                    model_id="x-ai/grok-4-fast",
+                    input_modalities=("text", "image"),
+                    pricing=OpenRouterPricing(prompt=2e-07, completion=5e-07),
+                ),
+            )
+            model_selection.list_artificial_analysis_llms = lambda: (
+                ArtificialAnalysisLLM(
+                    model_id="g1",
+                    name="Gemini 3.1 Flash Lite Preview",
+                    slug="gemini-3-1-flash-lite-preview",
+                    creator_slug="google",
+                    evaluations={"artificial_analysis_intelligence_index": 33.5},
+                    pricing=ArtificialAnalysisPricing(price_1m_blended_3_to_1=0.563),
+                    median_output_tokens_per_second=260.334,
+                    release_date="2025-10",
+                ),
+                ArtificialAnalysisLLM(
+                    model_id="x1",
+                    name="Grok 4 Fast",
+                    slug="grok-4-fast",
+                    creator_slug="xai",
+                    evaluations={"artificial_analysis_intelligence_index": 23.1},
+                    pricing=ArtificialAnalysisPricing(price_1m_blended_3_to_1=0.275),
+                    median_output_tokens_per_second=215.025,
+                    release_date="2025-09",
+                ),
+            )
+            ranked = recommend_openrouter_models_for_task(required_input_modality="image", limit=2)
+            self.assertEqual(ranked[0].openrouter_model_id, "google/gemini-2.5-flash-lite")
+        finally:
+            model_selection.list_openrouter_models = original_list_openrouter_models
+            model_selection.list_artificial_analysis_llms = original_list_artificial_analysis_llms
 
 
 if __name__ == "__main__":

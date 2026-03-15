@@ -83,6 +83,7 @@ It also now includes a live model-selection section so the agent can query curre
 
 The corresponding library helpers are:
 
+- `recommend_openrouter_models_for_task(...)`
 - `list_openrouter_models(...)`
 - `get_openrouter_model(...)`
 - `extract_openrouter_usage(...)`
@@ -96,10 +97,11 @@ The intent is not “always use AI.” Many tasks should stay deterministic. The
 
 When model choice matters, the intended workflow is:
 
-1. Use `list_artificial_analysis_llms(...)` to pull current quality, coding, math, speed, and price-per-1M-token data from Artificial Analysis.
-2. Use `shortlist_artificial_analysis_llms(...)` to narrow the field by your actual constraints.
-3. Use `list_openrouter_models(...)` or `get_openrouter_model(...)` to confirm the shortlisted models are actually available through OpenRouter and support the modalities/parameters you need.
-4. During real eval runs, use `extract_openrouter_usage(...)` or `fetch_openrouter_generation(...)` to capture exact OpenRouter cost instead of guessing from token counts.
+1. Use `recommend_openrouter_models_for_task(...)` to combine Artificial Analysis benchmark/speed data with OpenRouter availability, modality support, and provider pricing.
+2. Bias toward current releases when the tradeoff is close, but do not use recency alone as the selection rule.
+3. If needed, inspect the raw feeds with `list_artificial_analysis_llms(...)`, `shortlist_artificial_analysis_llms(...)`, `list_openrouter_models(...)`, or `get_openrouter_model(...)`.
+4. Run a tiny empirical probe on 1-3 real task examples across the top 2-4 candidates before locking the default model.
+5. During real eval runs, use `extract_openrouter_usage(...)` or `fetch_openrouter_generation(...)` to capture exact OpenRouter cost instead of guessing from token counts.
 
 Artificial Analysis attribution is required when using their free API. See their docs at `https://artificialanalysis.ai/api`.
 

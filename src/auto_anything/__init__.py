@@ -102,6 +102,16 @@ from .models import (
     TaskFamilySpec,
     WorkspaceLayout,
 )
+from .model_selection import (
+    ModelCatalogMatch,
+    ModelSelectionCandidate,
+    ModelSelectionWeights,
+    filter_artificial_analysis_models,
+    filter_openrouter_models,
+    match_openrouter_models_to_artificial_analysis,
+    recommend_openrouter_models_for_task,
+    score_model_catalog_match,
+)
 from .scaffold import materialize_scaffold
 from .skills import SkillRegistry
 from .task_docs import render_task_agents_md
@@ -180,6 +190,10 @@ __all__ = [
     "list_artificial_analysis_llms",
     "list_openrouter_models",
     "materialize_scaffold",
+    "match_openrouter_models_to_artificial_analysis",
+    "ModelCatalogMatch",
+    "ModelSelectionCandidate",
+    "ModelSelectionWeights",
     "ObjectiveBrief",
     "ObjectiveSignal",
     "load_experiment_history",
@@ -187,6 +201,7 @@ __all__ = [
     "record_experiment_result",
     "render_task_agents_md",
     "render_progress_curve_svg",
+    "recommend_openrouter_models_for_task",
     "resolve_referenced_paths",
     "RolePass",
     "RunCommand",
@@ -198,6 +213,7 @@ __all__ = [
     "run_self_critic",
     "ScaffoldPackSpec",
     "scaffold_pack_path",
+    "score_model_catalog_match",
     "SearchSurface",
     "SignalDirection",
     "SignalKind",
@@ -217,4 +233,6 @@ __all__ = [
     "WorkspaceLayout",
     "resolve_workspace_paths",
     "run_bootstrapped_eval",
+    "filter_artificial_analysis_models",
+    "filter_openrouter_models",
 ]
