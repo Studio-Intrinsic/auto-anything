@@ -273,14 +273,13 @@ def bootstrap_open_task(
         _task_readme_source(task_name=task_root.name, objective=objective, data_assets=data_assets),
         encoding="utf-8",
     )
-    (task_root / "AGENTS.md").write_text(
-        render_task_agents_md(
-            charter=charter,
-            task_name=task_root.name,
-            iteration_command=iteration_command,
-        ),
-        encoding="utf-8",
+    agents_content = render_task_agents_md(
+        charter=charter,
+        task_name=task_root.name,
+        iteration_command=iteration_command,
     )
+    (task_root / "AGENTS.md").write_text(agents_content, encoding="utf-8")
+    (task_root / "CLAUDE.md").write_text(agents_content, encoding="utf-8")
     (task_root / "task_charter.json").write_text(
         json.dumps(asdict(charter), indent=2, sort_keys=True, default=str),
         encoding="utf-8",
