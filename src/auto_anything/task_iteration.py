@@ -319,6 +319,8 @@ def run_task_iteration(
         notes=notes,
     )
     context = build_experiment_context(task_root)
+    baseline_signals = {s.name: s.value for s in baseline_report.signals}
+    candidate_signals = {s.name: s.value for s in candidate_report.signals}
     return {
         "decision": {
             "accepted": experiment.decision.accepted,
@@ -327,6 +329,8 @@ def run_task_iteration(
             "blocking_findings": list(experiment.decision.blocking_findings),
             "utility_gain": experiment.decision.utility_gain,
         },
+        "baseline_signals": baseline_signals,
+        "candidate_signals": candidate_signals,
         "history_entry": history_entry,
         "context": context,
     }

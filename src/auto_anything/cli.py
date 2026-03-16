@@ -169,6 +169,18 @@ def _cmd_iterate(args: argparse.Namespace) -> int:
         print(f"  Blocking signals: {', '.join(decision['blocking_signals'])}")
     if decision["blocking_findings"]:
         print(f"  Blocking findings: {', '.join(decision['blocking_findings'])}")
+
+    # Per-signal breakdown so the agent can see what drove the decision
+    baseline_signals = result.get("baseline_signals", {})
+    candidate_signals = result.get("candidate_signals", {})
+    if baseline_signals and candidate_signals:
+        print(f"\n  Signal breakdown:")
+        for name in sorted(set(baseline_signals) | set(candidate_signals)):
+            bv = baseline_signals.get(name, 0.0)
+            cv = candidate_signals.get(name, 0.0)
+            delta = cv - bv
+            direction = "+" if delta >= 0 else ""
+            print(f"    {name}: {bv} -> {cv} ({direction}{delta:.4f})")
     print()
 
     if result.get("context"):
