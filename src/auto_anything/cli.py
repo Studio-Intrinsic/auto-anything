@@ -6,6 +6,8 @@ Usage:
     auto-anything baseline  --task-root DIR [options]
     auto-anything status    --task-root DIR [options]
     auto-anything history   --task-root DIR [options]
+    auto-anything diagnose  --task-root DIR [options]
+    auto-anything hypothesize --task-root DIR --hypothesis "..." [options]
 """
 
 from __future__ import annotations
@@ -356,6 +358,119 @@ def _cmd_history(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# diagnose
+# ---------------------------------------------------------------------------
+
+
+def _add_diagnose_parser(subparsers: argparse._SubParsersAction) -> None:
+    p = subparsers.add_parser("diagnose", help="Analyze failure modes and show hypothesis ledger.")
+    p.add_argument("--task-root", required=True, help="Bootstrapped task workspace.")
+    p.add_argument("--json", action="store_true", dest="as_json", help="Output as JSON.")
+    p.set_defaults(func=_cmd_diagnose)
+
+
+def _cmd_diagnose(args: argparse.Namespace) -> int:
+    from .diagnose import diagnose
+
+    task_root = Path(args.task_root).expanduser().resolve()
+    if not (task_root / "artifacts" / "eval_summary.json").is_file():
+        print("No eval_summary.json found. Run a baseline or iteration first.", file=sys.stderr)
+        return 1
+
+    result = diagnose(task_root)
+
+    if args.as_json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    analysis = result["analysis"]
+    print(f"Diagnosis ({analysis.get('doc_count', 0)} docs, signal: {analysis.get('signal_key', '?')})")
+    print()
+
+    tiers = analysis.get("tiers", {})
+    if tiers:
+        print(f"  Tiers: {tiers.get('perfect', 0)} perfect, {tiers.get('passing', 0)} passing (>=0.8), {tiers.get('weak', 0)} weak (0.5-0.8), {tiers.get('failing', 0)} failing (<0.5)")
+
+    worst = analysis.get("worst_docs", [])
+    if worst:
+        sig = analysis.get("signal_key", "score")
+        print(f"\n  Worst docs:")
+        for d in worst:
+            print(f"    {d.get('doc', '?')}: {sig}={d.get(sig, '?')}")
+
+    modes = analysis.get("failure_modes", [])
+    if modes:
+        print(f"\n  Failure modes ({len(modes)}):")
+        for mode in modes:
+            print(f"    [{mode.get('impact', '?')}] {mode.get('mode', '?')}: {mode.get('description', '')}")
+            if mode.get("suggestion"):
+                print(f"         -> {mode['suggestion']}")
+            docs = mode.get("docs", [])
+            if docs:
+                print(f"         docs: {', '.join(docs[:5])}")
+
+    note = analysis.get("note")
+    if note:
+        print(f"\n  Note: {note}")
+
+    # Hypothesis ledger
+    hyps = result["hypotheses"]
+    open_h = hyps.get("open", [])
+    closed_h = hyps.get("closed", [])
+
+    if open_h or closed_h:
+        print(f"\n  Hypotheses: {len(open_h)} open, {len(closed_h)} closed")
+        for h in open_h:
+            print(f"    OPEN  {h['id']}: {h['hypothesis']}")
+            if h.get("targets"):
+                print(f"          targets: {h['targets']}")
+        for h in closed_h[-5:]:
+            icon = "+" if h.get("outcome") == "confirmed" else "-"
+            print(f"    {icon} {h['id']}: {h['hypothesis']} [{h.get('outcome', '?')}]")
+    else:
+        print(f"\n  No hypotheses recorded. Use 'auto-anything hypothesize' to add one.")
+
+    patterns = result.get("experiment_patterns", [])
+    if patterns:
+        print(f"\n  Experiment patterns:")
+        for p in patterns:
+            print(f"    - {p}")
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# hypothesize
+# ---------------------------------------------------------------------------
+
+
+def _add_hypothesize_parser(subparsers: argparse._SubParsersAction) -> None:
+    p = subparsers.add_parser("hypothesize", help="Add a hypothesis to the ledger before iterating.")
+    p.add_argument("--task-root", required=True, help="Bootstrapped task workspace.")
+    p.add_argument("--hypothesis", required=True, help="What you believe and want to test.")
+    p.add_argument("--targets", default="", help="What specific failure mode or docs this targets.")
+    p.add_argument("--failure-mode", default="", help="Which diagnosed failure mode this addresses.")
+    p.set_defaults(func=_cmd_hypothesize)
+
+
+def _cmd_hypothesize(args: argparse.Namespace) -> int:
+    from .diagnose import add_hypothesis
+
+    task_root = Path(args.task_root).expanduser().resolve()
+    entry = add_hypothesis(
+        task_root=task_root,
+        hypothesis=args.hypothesis,
+        targets=args.targets,
+        failure_mode=args.failure_mode,
+    )
+    print(f"Added {entry['id']}: {entry['hypothesis']}")
+    if entry.get("targets"):
+        print(f"  targets: {entry['targets']}")
+    print(f"\nTest it with: auto-anything iterate --task-root {task_root} --hypothesis '{entry['hypothesis']}' --change-summary '...'")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
 
@@ -388,6 +503,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_iterate_parser(subparsers)
     _add_status_parser(subparsers)
     _add_history_parser(subparsers)
+    _add_diagnose_parser(subparsers)
+    _add_hypothesize_parser(subparsers)
     return parser
 
 

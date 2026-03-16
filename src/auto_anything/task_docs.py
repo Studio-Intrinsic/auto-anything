@@ -153,11 +153,13 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
         f"- Env vars: `OPENROUTER_API_KEY`, `ARTIFICIAL_ANALYSIS_API_KEY`\n"
         f"- Docs: OpenRouter `https://openrouter.ai/docs/api-reference/overview`, Artificial Analysis `https://artificialanalysis.ai/api`\n\n"
         f"## Workflow\n"
-        f"- make a focused change\n"
-        f"- run the main eval command\n"
-        f"- inspect metrics, critic findings, and diff against prior accepted work\n"
-        f"- prefer modular changes over monolithic rewrites\n"
-        f"- record the next authoritative iteration with `{iteration_command}`\n"
+        f"1. **Diagnose first.** Run `auto-anything diagnose --task-root .` to see failure modes, doc tiers, and open hypotheses. Do not iterate without understanding what's failing and why.\n"
+        f"2. **Form a hypothesis.** Run `auto-anything hypothesize --task-root . --hypothesis '...' --targets '...'` to record what you believe and what you're targeting. This builds the hypothesis ledger.\n"
+        f"3. **Make a focused change** that tests your hypothesis.\n"
+        f"4. **Iterate.** Run `{iteration_command}` to evaluate, compare against baseline, and accept/reject.\n"
+        f"5. **Review the signal breakdown** to understand what drove the decision.\n"
+        f"6. **Diagnose again** to update failure modes and close/open hypotheses. Then repeat from step 2.\n\n"
+        f"The cycle is: diagnose → hypothesize → change → iterate → review → diagnose. Not: change → iterate → change → iterate.\n"
     )
 
 
