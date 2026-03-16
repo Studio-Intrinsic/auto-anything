@@ -8,6 +8,26 @@ version = "0.1.0"
 description = "Generic experiment harness for compiling high-level objectives into agent-optimizable tasks."
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    { name = "Studio Intrinsic" },
+]
+keywords = ["ai", "agents", "optimization", "experiment", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.urls]
+Homepage = "https://github.com/Studio-Intrinsic/auto-anything"
+Repository = "https://github.com/Studio-Intrinsic/auto-anything"
+Issues = "https://github.com/Studio-Intrinsic/auto-anything/issues"
 
 [project.scripts]
 auto-anything = "auto_anything.cli:main"
