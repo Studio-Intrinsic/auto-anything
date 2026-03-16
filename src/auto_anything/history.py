@@ -368,15 +368,23 @@ def render_progress_curve_svg(
         scaled = (value - metric_min) / (metric_max - metric_min)
         return margin_top + plot_height - (scaled * plot_height)
 
+    # Collect all plottable points
+    all_points: list[tuple[float, float, int, bool]] = []  # (x, y, index, accepted)
     running_best_points: list[tuple[float, float]] = []
     best_value: float | None = None
     for index, entry in enumerate(entries):
         if metric_name not in entry.get("signals", {}):
             continue
         value = float(entry["signals"][metric_name])
+        x, y = x_for(index), y_for(value)
+        accepted = bool(entry.get("accepted"))
+        all_points.append((x, y, index, accepted))
         if best_value is None or _metric_improved(value, best_value, direction):
             best_value = value
-            running_best_points.append((x_for(index), y_for(value)))
+            running_best_points.append((x, y))
+        else:
+            # Extend staircase horizontally at the current best level
+            running_best_points.append((x, running_best_points[-1][1]))
 
     y_ticks = []
     for tick_index in range(5):
@@ -388,10 +396,6 @@ def render_progress_curve_svg(
     kept_count = sum(1 for entry in entries if entry.get("accepted"))
     title = f"auto-anything progress: {len(entries)} experiments, {kept_count} kept improvements"
     y_axis_label = f"{metric_name} ({'lower' if lower_is_better else 'higher'} is better)"
-    best_path = " ".join(
-        ("M" if idx == 0 else "L") + f" {point[0]:.2f} {point[1]:.2f}"
-        for idx, point in enumerate(running_best_points)
-    )
 
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
@@ -400,58 +404,71 @@ def render_progress_curve_svg(
         f'<text x="{width / 2:.2f}" y="58" text-anchor="middle" font-size="14" font-family="Arial, sans-serif" fill="#374151">{_svg_escape(metric_name)}</text>',
     ]
 
+    # Grid lines
     for y_value, label_value in y_ticks:
         parts.append(f'<line x1="{margin_left}" y1="{y_value:.2f}" x2="{width - margin_right}" y2="{y_value:.2f}" stroke="#e5e7eb" stroke-width="1"/>')
-        parts.append(
-            f'<text x="{margin_left - 10}" y="{y_value + 4:.2f}" text-anchor="end" font-size="11" font-family="Arial, sans-serif" fill="#6b7280">{label_value:.3f}</text>'
-        )
+        parts.append(f'<text x="{margin_left - 10}" y="{y_value + 4:.2f}" text-anchor="end" font-size="11" font-family="Arial, sans-serif" fill="#6b7280">{label_value:.3f}</text>')
 
+    # Axes
     parts.append(f'<line x1="{margin_left}" y1="{margin_top}" x2="{margin_left}" y2="{height - margin_bottom}" stroke="#6b7280" stroke-width="1.5"/>')
     parts.append(f'<line x1="{margin_left}" y1="{height - margin_bottom}" x2="{width - margin_right}" y2="{height - margin_bottom}" stroke="#6b7280" stroke-width="1.5"/>')
-    parts.append(
-        f'<text x="{width / 2:.2f}" y="{height - 20}" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" fill="#374151">Experiment #</text>'
-    )
-    parts.append(
-        f'<text transform="translate(20 {height / 2:.2f}) rotate(-90)" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" fill="#374151">{_svg_escape(y_axis_label)}</text>'
-    )
+    parts.append(f'<text x="{width / 2:.2f}" y="{height - 20}" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" fill="#374151">Experiment #</text>')
+    parts.append(f'<text transform="translate(20 {height / 2:.2f}) rotate(-90)" text-anchor="middle" font-size="12" font-family="Arial, sans-serif" fill="#374151">{_svg_escape(y_axis_label)}</text>')
 
-    if best_path:
+    # Line connecting ALL experiments (light gray trail)
+    if len(all_points) > 1:
+        trail_path = " ".join(
+            ("M" if i == 0 else "L") + f" {pt[0]:.2f} {pt[1]:.2f}"
+            for i, pt in enumerate(all_points)
+        )
+        parts.append(f'<path d="{trail_path}" fill="none" stroke="#d1d5db" stroke-width="1.2"/>')
+
+    # Running best staircase (green)
+    if len(running_best_points) > 1:
+        best_path = " ".join(
+            ("M" if i == 0 else "L") + f" {pt[0]:.2f} {pt[1]:.2f}"
+            for i, pt in enumerate(running_best_points)
+        )
         parts.append(f'<path d="{best_path}" fill="none" stroke="#22c55e" stroke-width="2.5"/>')
 
+    # Dots and labels
+    best_set = set()
+    bv2: float | None = None
     for index, entry in enumerate(entries):
         if metric_name not in entry.get("signals", {}):
             continue
         value = float(entry["signals"][metric_name])
-        x = x_for(index)
-        y = y_for(value)
-        accepted = entry.get("accepted")
-        is_running_best = any(abs(px - x) < 0.01 and abs(py - y) < 0.01 for px, py in running_best_points)
+        if bv2 is None or _metric_improved(value, bv2, direction):
+            bv2 = value
+            best_set.add(index)
+
+    for x, y, index, accepted in all_points:
+        is_running_best = index in best_set
         fill = "#22c55e" if accepted else "#d1d5db"
         stroke = "#15803d" if is_running_best else "#9ca3af"
-        radius = 4.5 if accepted else 3.2
+        radius = 5.0 if is_running_best else (4.0 if accepted else 3.0)
         parts.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{radius}" fill="{fill}" stroke="{stroke}" stroke-width="1.2"/>')
-        parts.append(
-            f'<text x="{x:.2f}" y="{height - margin_bottom + 18}" text-anchor="middle" font-size="10" font-family="Arial, sans-serif" fill="#6b7280">{index}</text>'
-        )
+        parts.append(f'<text x="{x:.2f}" y="{height - margin_bottom + 18}" text-anchor="middle" font-size="10" font-family="Arial, sans-serif" fill="#6b7280">{index}</text>')
+        # Label kept experiments with their label or change summary
+        entry = entries[index]
         label = str(entry.get("label", "")).strip()
-        if is_running_best and label:
-            parts.append(
-                f'<text x="{x + 8:.2f}" y="{y - 8:.2f}" font-size="10" font-family="Arial, sans-serif" fill="#15803d">{_svg_escape(label)}</text>'
-            )
+        if not label:
+            label = str(entry.get("change_summary", "")).strip()[:40]
+        if accepted and label:
+            parts.append(f'<text x="{x + 8:.2f}" y="{y - 10:.2f}" font-size="9" font-family="Arial, sans-serif" fill="#15803d" transform="rotate(-20 {x + 8:.2f} {y - 10:.2f})">{_svg_escape(label)}</text>')
 
+    # Legend
     legend_x = width - 180
     legend_y = margin_top + 10
-    parts.extend(
-        [
-            f'<rect x="{legend_x}" y="{legend_y}" width="150" height="72" fill="#ffffff" stroke="#d1d5db"/>',
-            f'<circle cx="{legend_x + 16}" cy="{legend_y + 18}" r="3.2" fill="#d1d5db" stroke="#9ca3af" stroke-width="1.2"/>',
-            f'<text x="{legend_x + 30}" y="{legend_y + 22}" font-size="11" font-family="Arial, sans-serif" fill="#374151">Discarded / not kept</text>',
-            f'<circle cx="{legend_x + 16}" cy="{legend_y + 40}" r="4.5" fill="#22c55e" stroke="#15803d" stroke-width="1.2"/>',
-            f'<text x="{legend_x + 30}" y="{legend_y + 44}" font-size="11" font-family="Arial, sans-serif" fill="#374151">Kept improvement</text>',
-            f'<line x1="{legend_x + 8}" y1="{legend_y + 60}" x2="{legend_x + 24}" y2="{legend_y + 60}" stroke="#22c55e" stroke-width="2.5"/>',
-            f'<text x="{legend_x + 30}" y="{legend_y + 64}" font-size="11" font-family="Arial, sans-serif" fill="#374151">Running best</text>',
-        ]
-    )
+    parts.extend([
+        f'<rect x="{legend_x}" y="{legend_y}" width="150" height="72" fill="#ffffff" stroke="#d1d5db"/>',
+        f'<circle cx="{legend_x + 16}" cy="{legend_y + 18}" r="3.0" fill="#d1d5db" stroke="#9ca3af" stroke-width="1.2"/>',
+        f'<text x="{legend_x + 30}" y="{legend_y + 22}" font-size="11" font-family="Arial, sans-serif" fill="#374151">Discarded</text>',
+        f'<circle cx="{legend_x + 16}" cy="{legend_y + 40}" r="5.0" fill="#22c55e" stroke="#15803d" stroke-width="1.2"/>',
+        f'<text x="{legend_x + 30}" y="{legend_y + 44}" font-size="11" font-family="Arial, sans-serif" fill="#374151">Kept</text>',
+        f'<line x1="{legend_x + 8}" y1="{legend_y + 60}" x2="{legend_x + 24}" y2="{legend_y + 60}" stroke="#22c55e" stroke-width="2.5"/>',
+        f'<text x="{legend_x + 30}" y="{legend_y + 64}" font-size="11" font-family="Arial, sans-serif" fill="#374151">Running best</text>',
+    ])
 
     parts.append("</svg>")
     output_path.write_text("\n".join(parts) + "\n", encoding="utf-8")
