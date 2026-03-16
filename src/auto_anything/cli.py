@@ -86,17 +86,8 @@ def _cmd_bootstrap(args: argparse.Namespace) -> int:
         print("\nRunning baseline evaluation...")
         baseline = run_task_baseline(task_root=task_root)
         _print_eval_summary(task_root, baseline["summary"])
-        print(f"\nNext: edit the pipeline in {task_root}, then run:")
-        print(f'  auto-anything iterate --task-root {task_root} --hypothesis "..." --change-summary "..."')
 
-    # Print the CLAUDE.md so the agent has full context immediately.
-    claude_md = task_root / "CLAUDE.md"
-    if claude_md.is_file():
-        print(f"\n{'=' * 60}")
-        print(f"CLAUDE.md ({task_root})")
-        print(f"{'=' * 60}\n")
-        print(claude_md.read_text(encoding="utf-8"))
-
+    print(f"\ncd {task_root}")
     return 0
 
 
