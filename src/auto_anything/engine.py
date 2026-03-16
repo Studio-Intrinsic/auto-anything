@@ -21,9 +21,21 @@ def _signal_value(report: EvaluationReport, signal_name: str) -> float:
 
 
 def _improvement(signal: ObjectiveSignal, baseline_value: float, candidate_value: float) -> float:
+    """Compute normalized improvement as a fraction of the baseline value.
+
+    Raw deltas are scale-dependent: a 0.01 change in a 0-1 signal is huge,
+    while a 1-unit change in a 0-500 signal is trivial. Normalizing by the
+    baseline magnitude puts all signals on a comparable fractional scale so
+    weights work as intended.
+    """
     if signal.direction in {SignalDirection.MAXIMIZE, SignalDirection.SATISFY}:
-        return candidate_value - baseline_value
-    return baseline_value - candidate_value
+        raw = candidate_value - baseline_value
+    else:
+        raw = baseline_value - candidate_value
+    # Normalize by baseline magnitude (use 1.0 floor to avoid division by zero
+    # and to keep signals near zero on an absolute scale)
+    scale = max(abs(baseline_value), 1.0)
+    return raw / scale
 
 
 def _passes_hard_gate(signal: ObjectiveSignal, candidate_value: float) -> bool:
