@@ -9,6 +9,9 @@ description = "Generic experiment harness for compiling high-level objectives in
 readme = "README.md"
 requires-python = ">=3.10"
 
+[project.scripts]
+auto-anything = "auto_anything.cli:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

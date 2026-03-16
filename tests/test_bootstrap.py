@@ -40,7 +40,7 @@ class BootstrapTests(unittest.TestCase):
             self.assertIn("## Mutable Surface", agents_text)
             self.assertIn("## Optimizable Artifacts", agents_text)
             self.assertIn("src/invoice_pipeline", agents_text)
-            self.assertIn("run_task_iteration.py --task-root", agents_text)
+            self.assertIn("auto-anything iterate --task-root", agents_text)
             self.assertIn("list_openrouter_models()", agents_text)
             self.assertIn("list_artificial_analysis_llms()", agents_text)
 

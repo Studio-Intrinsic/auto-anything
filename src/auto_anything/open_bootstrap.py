@@ -267,8 +267,7 @@ def bootstrap_open_task(
         destination_dir=task_root,
         replacements=replacements,
     )
-    iteration_script = (LIBRARY_SRC.parent / "examples" / "run_task_iteration.py").resolve()
-    iteration_command = f"python3 {iteration_script} --task-root {task_root} --hypothesis ... --change-summary ..."
+    iteration_command = f"auto-anything iterate --task-root {task_root} --hypothesis ... --change-summary ..."
     (task_root / "README.md").write_text(
         _task_readme_source(task_name=task_root.name, objective=objective, data_assets=data_assets),
         encoding="utf-8",

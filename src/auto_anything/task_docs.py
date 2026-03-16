@@ -38,7 +38,7 @@ def render_task_agents_md(*, charter: TaskCharter, task_name: str, iteration_com
     role_lines = "\n".join(f"- `{role.role.value}`: {role.goal}" for role in charter.agent_loop.passes)
     soft_constraints = tuple(constraint.statement for constraint in charter.soft_constraints)
     focus_subsystems = charter.focus_subsystems or ("none declared",)
-    iteration_command = iteration_command or "python3 <path-to-run_task_iteration.py> --task-root <task_root> --hypothesis ... --change-summary ..."
+    iteration_command = iteration_command or "auto-anything iterate --task-root <task_root> --hypothesis ... --change-summary ..."
     notes = tuple(note for note in charter.notes if note.strip())
     artifact_lines = []
     for artifact in charter.optimizable_artifacts:

@@ -343,9 +343,8 @@ def bootstrap_invoice_task(
     )
     _copy_dataset(data_dir, task_root / "fixtures", task_root / "goldens")
     (task_root / "README.md").write_text(_task_readme_source(task_root.name), encoding="utf-8")
-    iteration_script = (LIBRARY_SRC.parent / "examples" / "run_task_iteration.py").resolve()
     iteration_command = (
-        f"python3 {iteration_script} --task-root {task_root} --hypothesis ... --change-summary ..."
+        f"auto-anything iterate --task-root {task_root} --hypothesis ... --change-summary ..."
     )
     agents_content = render_task_agents_md(
         charter=charter,
